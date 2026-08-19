@@ -1,0 +1,87 @@
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors and local workspace state
+.vs/
+**/.vs/
+.idea/
+**/.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.code-workspace
+.claude/settings.local.json
+**/.claude/settings.local.json
+
+# Logs and local databases
+*.log
+logs/
+*.sqlite
+*.sqlite3
+
+# .NET build and tooling output
+**/[Bb]in/
+**/[Oo]bj/
+**/[Pp]ublish/
+artifacts/
+TestResults/
+coverage/
+*.nupkg
+*.snupkg
+*.pdb
+
+# Visual Studio publish settings
+*.pubxml
+*.pubxml.user
+*.publishproj
+
+# ASP.NET Core local configuration and secrets
+backendMAIN/appsettings.json
+backendMAIN/appsettings.Development.json
+backendMAIN/appsettings.Local.json
+backendMAIN/appsettings.*.local.json
+!backendMAIN/appsettings.example.json
+secrets.json
+
+# Generic environment and credential files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Dart and Flutter tooling
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/doc/api/
+**/build/
+**/coverage/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/ios/Pods/
+**/ios/.symlinks/
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+app.*.symbols
+app.*.map.json
+
+# Mobile signing credentials
+**/key.properties
+**/*.jks
+**/*.keystore
+

@@ -1,0 +1,587 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Technocare Admin Panel</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+          rel="stylesheet" />
+
+    <style>
+        body {
+            background: #f8f9fa;
+        }
+
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+            .sidebar .nav-link {
+                color: #ecf0f1;
+                padding: 12px 15px;
+                margin: 4px 8px;
+                border-radius: 6px;
+                transition: all 0.3s;
+            }
+
+                .sidebar .nav-link:hover {
+                    background: rgba(255,255,255,0.1);
+                    color: #fff;
+                }
+
+                .sidebar .nav-link.active {
+                    background: #3498db;
+                    color: #fff;
+                    font-weight: 500;
+                }
+
+        .admin-section {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+            .admin-section.active {
+                display: block;
+            }
+
+        #app-message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            z-index: 2000;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        .table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .table thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .table thead th {
+            border: none;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .badge {
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .status-pending { background: #ffc107; color: #000; }
+        .status-processing { background: #17a2b8; color: white; }
+        .status-shipped { background: #007bff; color: white; }
+        .status-delivered { background: #28a745; color: white; }
+        .status-cancelled { background: #dc3545; color: white; }
+
+        .btn-sm {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .modal-content {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #654090 100%);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- SIDEBAR -->
+            <nav class="col-md-3 col-lg-2 sidebar p-3">
+                <h4 class="text-white">Technocare Admin</h4>
+                <hr class="border-secondary" />
+                <ul id="sidebar-nav" class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-section="products" href="#">Products</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="categories" href="#">Categories</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="orders" href="#">Orders</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="projects" href="#">Projects</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="education" href="#">Education Apps</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="services" href="#">Service Apps</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="users" href="#">Users</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="notifications" href="#">Notifications</a>
+                    </li>
+
+                    <!-- Live chat removed as requested -->
+
+                    <li class="nav-item mt-3">
+                        <a class="nav-link text-danger" href="#" id="logout-link">Logout</a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- MAIN -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 id="section-title">Product Management</h2>
+                    <button id="section-add-btn" class="btn btn-primary d-none">
+                        <i class="bi bi-plus-lg"></i> <span id="section-add-btn-text"></span>
+                    </button>
+                </div>
+
+                <!-- PRODUCTS -->
+                <section id="section-products" class="admin-section active">
+                    <table class="table table-striped" id="products-table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Price</th>
+                                <th>Stock</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- CATEGORIES -->
+                <section id="section-categories" class="admin-section">
+                    <div class="mb-3">
+                        <input type="text" id="category-search" class="form-control" placeholder="🔍 Search categories...">
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="categories-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- ORDERS -->
+                <section id="section-orders" class="admin-section">
+                    <div class="mb-3 d-flex gap-2">
+                        <select id="order-status-filter" class="form-select" style="width: 200px;">
+                            <option value="">All Statuses</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                        <input type="text" id="order-search" class="form-control" placeholder="Search orders..." style="flex: 1;">
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th style="width:100px;">Order ID</th>
+                                <th style="width:150px;">Customer</th>
+                                <th style="width:120px;">Email</th>
+                                <th style="width:100px;">Status</th>
+                                <th style="width:100px;">Total</th>
+                                <th style="width:120px;">Date</th>
+                                <th>Items</th>
+                                <th style="width:140px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- PROJECTS -->
+                <section id="section-projects" class="admin-section">
+                    <div class="mb-3">
+                        <input type="text" id="project-search" class="form-control" placeholder="🔍 Search projects...">
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th style="width:160px;">Id</th>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>ImageUrl</th>
+                                <th>Images</th>
+                                <th>Content</th>
+                                <th style="width:160px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projects-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- EDUCATION APPLICATIONS -->
+                <section id="section-education" class="admin-section">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Program</th>
+                                <th>Message</th>
+                                <th>Applied At</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="education-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- SERVICE APPLICATIONS -->
+                <section id="section-services" class="admin-section">
+                    <div class="mb-3">
+                        <input type="text" id="service-search" class="form-control" placeholder="🔍 Search service applications...">
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>applicantName</th>
+                                <th>applicantEmail</th>
+                                <th>applicantPhone</th>
+                                <th>appliedFor</th>
+                                <th>message</th>
+                                <th>applicationDate</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="services-table-body"></tbody>
+                    </table>
+                </section>
+
+                <!-- USERS -->
+                <section id=”section-users” class=”admin-section”>
+                    <div class=”mb-3”>
+                        <input type=”text” id=”user-search” class=”form-control” placeholder=”🔍 Search users by name or email...”>
+                    </div>
+                    <table class=”table table-striped align-middle”>
+                        <thead>
+                            <tr>
+                                <th style=”width:100px;”>ID</th>
+                                <th style=”width:150px;”>Name</th>
+                                <th style=”width:200px;”>Email</th>
+                                <th style=”width:120px;”>Phone</th>
+                                <th style=”width:80px;”>Role</th>
+                                <th style=”width:80px;” class=”text-center”>Verified</th>
+                                <th style=”width:80px;”>Orders</th>
+                                <th style=”width:80px;”>Education</th>
+                                <th style=”width:80px;”>Service</th>
+                                <th style=”width:100px;”>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id=”users-table-body”></tbody>
+                    </table>
+                </section>
+
+                <!-- NOTIFICATIONS -->
+                <section id="section-notifications" class="admin-section">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Id</th>
+                                <th>Title</th>
+                                <th>Message</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="notifications-table-body"></tbody>
+                    </table>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <div id="app-message-box" class="alert alert-danger text-center"></div>
+
+    <!-- PRODUCT MODAL -->
+    <div class="modal fade" id="product-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="product-modal-title">Add Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="product-form">
+                        <input type="hidden" id="product-id" />
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input id="product-name" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea id="product-description" rows="3" class="form-control" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Price</label>
+                            <input id="product-price" type="number" step="0.01" class="form-control" required />
+                        </div>
+
+                        <!-- CHANGED: category is now a SELECT populated from /api/categories -->
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <select id="product-categoryId" class="form-select" required>
+                                <option value="">Loading categories...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Stock</label>
+                            <input id="product-stock" type="number" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Image URL</label>
+                            <input id="product-image" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tags (comma separated)</label>
+                            <input id="product-tags" class="form-control" />
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="save-product-btn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRODUCT DELETE CONFIRM -->
+    <div class="modal fade" id="confirm-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirm-modal-title">Confirm delete</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirm-modal-text">Are you sure?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CATEGORY MODAL -->
+    <div class="modal fade" id="category-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="category-modal-title">Add Category</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="category-form">
+                        <input type="hidden" id="category-id" />
+                        <div class="mb-3">
+                            <label class="form-label">Category Name</label>
+                            <input id="category-name" class="form-control" required />
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="save-category-btn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION MODAL (NEW, for CRUD create) -->
+    <div class="modal fade" id="notification-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="notification-modal-title">Create Notification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="notification-form">
+                        <div class="mb-3">
+                            <label class="form-label">Title</label>
+                            <input id="notification-title" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea id="notification-message" class="form-control" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target UserId (optional)</label>
+                            <input id="notification-userId" class="form-control" placeholder="leave empty = broadcast/all" />
+                        </div>
+                    </form>
+                    <div class="text-muted small">
+                        Uses POST /api/notifications (CreateNotificationRequest). If your backend requires specific fields,
+                        we’ll match them.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="save-notification-btn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PROJECT MODAL (kept) -->
+    <div class="modal fade" id="project-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="project-modal-title">Add Project</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="project-form">
+                        <input type="hidden" id="project-id" />
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Name</label>
+                                <input id="project-name" class="form-control" required />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ImageUrl</label>
+                                <input id="project-imageUrl" class="form-control" placeholder="https://..." required />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea id="project-description" class="form-control" rows="3" required></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Images (comma separated URLs)</label>
+                            <input id="project-images" class="form-control" placeholder="url1, url2, url3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Content</label>
+                            <textarea id="project-content" class="form-control" rows="5" required></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" id="save-project-btn" type="button">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- USER DETAILS MODAL -->
+    <div class="modal fade" id="user-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="user-modal-title">User Details</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="user-details-content">
+                        <!-- User details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ORDER DETAILS MODAL -->
+    <div class="modal fade" id="order-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="order-modal-title">Order Details</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="order-details-content">
+                        <!-- Order details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
