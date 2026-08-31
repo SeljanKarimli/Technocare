@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/home_content.dart';
 import '../models/shop_models.dart';
 import '../repositories/shop_repository.dart';
+import '../services/whatsapp_order_service.dart';
 import 'ShopProductDetailPage.dart';
 
 class LiveHomeScreen extends StatefulWidget {
@@ -41,7 +42,10 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
           return const _HomeSkeleton();
         }
         if (snapshot.hasError || !snapshot.hasData) {
-          return _HomeError(error: snapshot.error?.toString(), onRetry: _refresh);
+          return _HomeError(
+            error: snapshot.error?.toString(),
+            onRetry: _refresh,
+          );
         }
         return RefreshIndicator(
           color: const Color(0xFF59BE3F),
@@ -77,7 +81,10 @@ class _HomeSectionView extends StatelessWidget {
     return switch (section.type) {
       'hero' => _HeroSection(section: section, onOpenShop: onOpenShop),
       'about' || 'mission' => _AboutSection(section: section),
-      'categories' => _CategorySection(section: section, onOpenShop: onOpenShop),
+      'categories' => _CategorySection(
+        section: section,
+        onOpenShop: onOpenShop,
+      ),
       'brands' => _BrandSection(section: section),
       'best_sellers' => _BestSellerSection(section: section),
       'services' => _DarkCardSection(section: section),
@@ -108,7 +115,8 @@ class _HeroSection extends StatelessWidget {
               imageUrl: image,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(color: const Color(0xFFE9EEE7)),
-              errorWidget: (_, __, ___) => Container(color: const Color(0xFF101816)),
+              errorWidget: (_, __, ___) =>
+                  Container(color: const Color(0xFF101816)),
             )
           else
             Container(color: const Color(0xFF101816)),
@@ -122,24 +130,53 @@ class _HeroSection extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Text(
-                    section.eyebrow.isEmpty ? 'TECHNOCARE' : section.eyebrow.toUpperCase(),
-                    style: const TextStyle(color: Color(0xFF83DA58), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.4),
+                    section.eyebrow.isEmpty
+                        ? 'TECHNOCARE'
+                        : section.eyebrow.toUpperCase(),
+                    style: const TextStyle(
+                      color: Color(0xFF83DA58),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    section.title.isEmpty ? 'Müasir texnoloji həllərlə sənayenizi gücləndiririk.' : section.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 32, height: 1.12, fontWeight: FontWeight.w800),
+                    section.title.isEmpty
+                        ? 'Müasir texnoloji həllərlə sənayenizi gücləndiririk.'
+                        : section.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      height: 1.12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   if (section.body.isNotEmpty) ...[
                     const SizedBox(height: 14),
-                    Text(section.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5)),
+                    Text(
+                      section.body,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: onOpenShop,
                     icon: const Icon(Icons.arrow_forward_rounded),
                     label: const Text('Məhsullara bax'),
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF59BE3F), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF59BE3F),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 15,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -165,22 +202,55 @@ class _AboutSection extends StatelessWidget {
           if (section.images.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: CachedNetworkImage(imageUrl: section.images.first, height: 220, width: double.infinity, fit: BoxFit.cover),
+              child: CachedNetworkImage(
+                imageUrl: section.images.first,
+                height: 220,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
             ),
           if (section.metrics.isNotEmpty) ...[
             const SizedBox(height: 14),
             Row(
-              children: section.metrics.take(3).map((metric) => Expanded(
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                  decoration: BoxDecoration(color: const Color(0xFF59BE3F), borderRadius: BorderRadius.circular(12)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(metric.value, style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
-                    if (metric.label.isNotEmpty) Text(metric.label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                  ]),
-                ),
-              )).toList(),
+              children: section.metrics
+                  .take(3)
+                  .map(
+                    (metric) => Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF59BE3F),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              metric.value,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 25,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (metric.label.isNotEmpty)
+                              Text(
+                                metric.label,
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ],
@@ -213,21 +283,48 @@ class _CategorySection extends StatelessWidget {
               onTap: onOpenShop,
               child: Container(
                 width: 160,
-                decoration: BoxDecoration(color: const Color(0xFFF5F7F4), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE3E8E1))),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      child: item.imageUrl.isEmpty
-                          ? const Center(child: Icon(Icons.precision_manufacturing_outlined, color: Color(0xFF59BE3F), size: 44))
-                          : CachedNetworkImage(imageUrl: item.imageUrl, width: double.infinity, fit: BoxFit.cover),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F7F4),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE3E8E1)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        child: item.imageUrl.isEmpty
+                            ? const Center(
+                                child: Icon(
+                                  Icons.precision_manufacturing_outlined,
+                                  color: Color(0xFF59BE3F),
+                                  size: 44,
+                                ),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: item.imageUrl,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.2)),
-                  ),
-                ]),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        item.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -250,13 +347,29 @@ class _BrandSection extends StatelessWidget {
       child: Wrap(
         spacing: 10,
         runSpacing: 10,
-        children: brands.take(20).map((brand) => Container(
-          width: (MediaQuery.sizeOf(context).width - 58) / 2,
-          height: 70,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E9E3))),
-          child: Text(brand.name, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF37413B))),
-        )).toList(),
+        children: brands
+            .take(20)
+            .map(
+              (brand) => Container(
+                width: (MediaQuery.sizeOf(context).width - 58) / 2,
+                height: 70,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E9E3)),
+                ),
+                child: Text(
+                  brand.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF37413B),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -277,7 +390,8 @@ class _BestSellerSection extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           itemCount: products.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (_, index) => _CompactProductCard(product: products[index]),
+          itemBuilder: (_, index) =>
+              _CompactProductCard(product: products[index]),
         ),
       ),
     );
@@ -291,31 +405,80 @@ class _CompactProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ShopProductDetailPage(product: product))),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ShopProductDetailPage(product: product),
+        ),
+      ),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: 190,
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E9E3))),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: product.primaryImage.isEmpty
-                  ? const Center(child: Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey))
-                  : CachedNetworkImage(imageUrl: product.primaryImage, width: double.infinity, fit: BoxFit.contain),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E9E3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+                child: product.primaryImage.isEmpty
+                    ? const Center(
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 48,
+                          color: Colors.grey,
+                        ),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: product.primaryImage,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (product.brand.isNotEmpty) Text(product.brand.toUpperCase(), style: const TextStyle(color: Color(0xFF59BE3F), fontSize: 10, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 5),
-              Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.25)),
-              const SizedBox(height: 9),
-              Text(product.displayPrice, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            ]),
-          ),
-        ]),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (product.brand.isNotEmpty)
+                    Text(
+                      product.brand.toUpperCase(),
+                      style: const TextStyle(
+                        color: Color(0xFF59BE3F),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  const SizedBox(height: 5),
+                  Text(
+                    product.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 9),
+                  Text(
+                    product.displayPrice,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -327,22 +490,49 @@ class _DarkCardSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final links = section.links.isEmpty ? const [HomeLink('Daha ətraflı', 'https://technocare.az/xidmetler')] : section.links;
+    final links = section.links.isEmpty
+        ? const [HomeLink('Daha ətraflı', 'https://technocare.az/xidmetler')]
+        : section.links;
     return _SectionShell(
       section: section,
       child: Column(
-        children: links.take(8).map((link) => Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(color: const Color(0xFF111917), borderRadius: BorderRadius.circular(14)),
-          child: Row(children: [
-            const Icon(Icons.engineering_outlined, color: Color(0xFF72CE50)),
-            const SizedBox(width: 14),
-            Expanded(child: Text(link.label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-            const Icon(Icons.arrow_forward, color: Colors.white54, size: 18),
-          ]),
-        )).toList(),
+        children: links
+            .take(8)
+            .map(
+              (link) => Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF111917),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.engineering_outlined,
+                      color: Color(0xFF72CE50),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        link.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward,
+                      color: Colors.white54,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -360,14 +550,38 @@ class _QualitySection extends StatelessWidget {
       child: Column(
         children: [
           if (section.images.isNotEmpty)
-            ClipRRect(borderRadius: BorderRadius.circular(16), child: CachedNetworkImage(imageUrl: section.images.first, height: 220, width: double.infinity, fit: BoxFit.cover)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: CachedNetworkImage(
+                imageUrl: section.images.first,
+                height: 220,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
           const SizedBox(height: 16),
           for (final item in const [
-            ('Layihələrin sıfırdan hazırlanması', Icons.settings_suggest_outlined),
+            (
+              'Layihələrin sıfırdan hazırlanması',
+              Icons.settings_suggest_outlined,
+            ),
             ('Peşəkar servis və texniki dəstək', Icons.headset_mic_outlined),
-            ('Beynəlxalq standartlara uyğun məhsullar', Icons.verified_user_outlined),
+            (
+              'Beynəlxalq standartlara uyğun məhsullar',
+              Icons.verified_user_outlined,
+            ),
           ])
-            ListTile(contentPadding: EdgeInsets.zero, leading: CircleAvatar(backgroundColor: const Color(0xFF59BE3F), child: Icon(item.$2, color: Colors.white, size: 20)), title: Text(item.$1, style: const TextStyle(fontWeight: FontWeight.w700))),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFF59BE3F),
+                child: Icon(item.$2, color: Colors.white, size: 20),
+              ),
+              title: Text(
+                item.$1,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
         ],
       ),
     );
@@ -390,7 +604,11 @@ class _GallerySection extends StatelessWidget {
           separatorBuilder: (_, __) => const SizedBox(width: 12),
           itemBuilder: (_, index) => ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: CachedNetworkImage(imageUrl: section.images[index], width: 260, fit: BoxFit.cover),
+            child: CachedNetworkImage(
+              imageUrl: section.images[index],
+              width: 260,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
       ),
@@ -404,7 +622,12 @@ class _SectionShell extends StatelessWidget {
   final Widget? trailing;
   final Color background;
 
-  const _SectionShell({required this.section, required this.child, this.trailing, this.background = Colors.white});
+  const _SectionShell({
+    required this.section,
+    required this.child,
+    this.trailing,
+    this.background = Colors.white,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -412,33 +635,69 @@ class _SectionShell extends StatelessWidget {
       color: background,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 34, 18, 34),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (section.eyebrow.isNotEmpty) Text(section.eyebrow.toUpperCase(), style: const TextStyle(color: Color(0xFF59BE3F), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.3)),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Expanded(child: Text(section.title.isEmpty ? _fallbackTitle(section.type) : section.title, style: const TextStyle(fontSize: 25, height: 1.15, fontWeight: FontWeight.w900, color: Color(0xFF17201B)))),
-            if (trailing != null) trailing!,
-          ]),
-          if (section.body.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(section.body, maxLines: 7, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF667069), fontSize: 14, height: 1.55)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (section.eyebrow.isNotEmpty)
+              Text(
+                section.eyebrow.toUpperCase(),
+                style: const TextStyle(
+                  color: Color(0xFF59BE3F),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.3,
+                ),
+              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    section.title.isEmpty
+                        ? _fallbackTitle(section.type)
+                        : section.title,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF17201B),
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            if (section.body.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                section.body,
+                maxLines: 7,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF667069),
+                  fontSize: 14,
+                  height: 1.55,
+                ),
+              ),
+            ],
+            const SizedBox(height: 22),
+            child,
           ],
-          const SizedBox(height: 22),
-          child,
-        ]),
+        ),
       ),
     );
   }
 
   String _fallbackTitle(String type) => switch (type) {
-        'categories' => 'Məhsul kateqoriyaları',
-        'brands' => 'Brendlər',
-        'best_sellers' => 'Ən çox satılan məhsullar',
-        'services' => 'Peşəkar həllər',
-        'quality' => 'Sənaye üçün müasir texnoloji həllər',
-        'projects' => 'Layihələrimiz',
-        'partners' => 'Müştərilərimiz və partnyorlarımız',
-        _ => 'Technocare',
-      };
+    'categories' => 'Məhsul kateqoriyaları',
+    'brands' => 'Brendlər',
+    'best_sellers' => 'Ən çox satılan məhsullar',
+    'services' => 'Peşəkar həllər',
+    'quality' => 'Sənaye üçün müasir texnoloji həllər',
+    'projects' => 'Layihələrimiz',
+    'partners' => 'Müştərilərimiz və partnyorlarımız',
+    _ => 'Technocare',
+  };
 }
 
 class _ContactFooter extends StatelessWidget {
@@ -449,20 +708,46 @@ class _ContactFooter extends StatelessWidget {
     return Container(
       color: const Color(0xFF0D171C),
       padding: const EdgeInsets.fromLTRB(22, 36, 22, 46),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Layihəniz var?', style: TextStyle(color: Color(0xFF72CE50), fontWeight: FontWeight.w800)),
-        const SizedBox(height: 8),
-        const Text('Bizimlə əlaqə saxlayın', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 12),
-        const Text('Texniki dəstək və korporativ satış komandamız sizə uyğun həlli seçməkdə kömək edəcək.', style: TextStyle(color: Colors.white70, height: 1.5)),
-        const SizedBox(height: 22),
-        FilledButton.icon(
-          onPressed: () => launchUrl(Uri.parse('https://wa.me/994102307097'), mode: LaunchMode.externalApplication),
-          icon: const Icon(Icons.chat_outlined),
-          label: const Text('WhatsApp ilə yazın'),
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF59BE3F)),
-        ),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Layihəniz var?',
+            style: TextStyle(
+              color: Color(0xFF72CE50),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Bizimlə əlaqə saxlayın',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Texniki dəstək və korporativ satış komandamız sizə uyğun həlli seçməkdə kömək edəcək.',
+            style: TextStyle(color: Colors.white70, height: 1.5),
+          ),
+          const SizedBox(height: 22),
+          FilledButton.icon(
+            onPressed: () async {
+              final uri = await context
+                  .read<WhatsAppOrderService>()
+                  .createChatUri();
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            icon: const Icon(Icons.chat_outlined),
+            label: const Text('WhatsApp ilə yazın'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF59BE3F),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -472,11 +757,23 @@ class _HomeSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(padding: EdgeInsets.zero, children: [
-      Container(height: 440, color: const Color(0xFFE3E8E1)),
-      for (var i = 0; i < 3; i++)
-        Padding(padding: const EdgeInsets.all(20), child: Container(height: 170, decoration: BoxDecoration(color: const Color(0xFFF0F2EF), borderRadius: BorderRadius.circular(16)))),
-    ]);
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Container(height: 440, color: const Color(0xFFE3E8E1)),
+        for (var i = 0; i < 3; i++)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              height: 170,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F2EF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -487,15 +784,31 @@ class _HomeError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(32), children: [
-      const SizedBox(height: 90),
-      const Icon(Icons.cloud_off_outlined, size: 70, color: Color(0xFF59BE3F)),
-      const SizedBox(height: 18),
-      const Text('Ana səhifə yüklənmədi', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 8),
-      Text(error ?? 'İnternet bağlantısını yoxlayın.', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
-      const SizedBox(height: 22),
-      FilledButton(onPressed: onRetry, child: const Text('Yenidən cəhd et')),
-    ]);
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 90),
+        const Icon(
+          Icons.cloud_off_outlined,
+          size: 70,
+          color: Color(0xFF59BE3F),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'Ana səhifə yüklənmədi',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          error ?? 'İnternet bağlantısını yoxlayın.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.black54),
+        ),
+        const SizedBox(height: 22),
+        FilledButton(onPressed: onRetry, child: const Text('Yenidən cəhd et')),
+      ],
+    );
   }
 }

@@ -6,19 +6,20 @@ Technocare is a Flutter Android/iOS application backed by ASP.NET Core 8 and the
 
 ```mermaid
 flowchart LR
-    App[Flutter app] -->|HTTPS + JWT| API[ASP.NET Core gateway]
+    App[Flutter app] -->|HTTPS; JWT only for account features| API[ASP.NET Core gateway]
     API -->|Conditional JSON requests| WP[WordPress app API plugin]
-    WP --> Woo[WooCommerce catalogue and checkout]
-    API --> Mongo[(MongoDB users, carts, applications, notifications)]
+    WP --> Woo[WooCommerce catalogue]
+    API --> Mongo[(MongoDB users, applications, notifications)]
     API --> SMTP[SMTP verification and recovery]
-    Woo -->|technocare://checkout| App
+    App -->|Prefilled guest order| WhatsApp[Technocare WhatsApp]
 ```
 
 - Flutter never parses Elementor HTML and never trusts client-supplied prices.
 - The WordPress plugin converts supported Elementor sections into ordered, typed JSON blocks.
 - The backend isolates the app from WordPress response details, retries safe reads, caches for five minutes, and returns stale content during temporary website failures.
-- The native cart stores numeric WooCommerce product IDs. WooCommerce revalidates product availability and current pricing before checkout.
-- Payment, address, and delivery data remain inside WooCommerce checkout.
+- The active cart is stored on the device and works without registration or login. It refreshes product snapshots from WooCommerce before preparing an order.
+- The app resolves Technocare's WhatsApp contact from live homepage links, with a build-time fallback, and opens a complete prefilled order message. WhatsApp requires the customer to tap **Send**.
+- Existing signed WooCommerce checkout/session code is retained for a future payment flow, but is not used by the active guest purchase journey.
 - Legacy MongoDB products, carts, orders, categories, and projects are retained behind admin-only `/api/internal/legacy/*` routes; the mobile app does not use them.
 
 ## Repository layout
@@ -55,7 +56,7 @@ Backend gateway:
 | Public | `GET /api/v1/content/home` |
 | Public | `GET /api/v1/content/projects`, `/services`, `/education` |
 | Public | `GET /api/v1/shop/products`, `/products/{id}`, `/categories`, `/brands` |
-| JWT | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
+| JWT, retained/inactive in the guest flow | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
 | JWT | `/api/notifications/my-notifications` |
 | Public submission | `/api/serviceapplications`, `/api/educationapplications` |
 
@@ -117,7 +118,7 @@ flutter build appbundle --release --dart-define=API_BASE_URL=https://api.technoc
 flutter build ipa --release --dart-define=API_BASE_URL=https://api.technocare.az/api
 ```
 
-JWTs are stored with platform secure storage. The app registers `technocare://checkout/success` and `technocare://checkout/cancel` for WooCommerce checkout returns. Android cleartext traffic and invalid-certificate overrides are disabled.
+`WHATSAPP_PHONE=994102307097` can be supplied as an additional `--dart-define` fallback. Normally the app discovers the current WhatsApp link from the website homepage response within the same five-minute cache window. JWTs are stored with platform secure storage for optional account/profile features. Android cleartext traffic and invalid-certificate overrides are disabled.
 
 ## Validation
 
@@ -138,7 +139,7 @@ CI runs the same backend, Flutter, WordPress syntax, and insecure-client checks 
 1. Install and verify the WordPress plugin endpoints.
 2. Deploy the backend to a valid HTTPS endpoint with production secrets.
 3. Set DNS/TLS for `api.technocare.az` (or supply another HTTPS URL at build time).
-4. Produce an internal Android/iOS build and complete checkout/app-link tests.
+4. Produce an internal Android/iOS build and verify guest cart persistence plus the prefilled WhatsApp order on real devices.
 5. Release the mobile builds.
 
 After deployment, verify that editing homepage text, changing product price/stock, reordering a supported section, and hiding a section appear in the app within five minutes.
@@ -148,4 +149,4 @@ After deployment, verify that editing homepage text, changing product price/stoc
 - Do not commit `appsettings.*.json`, `.env` files, signing keys, certificates, SMTP passwords, JWT secrets, or the WordPress shared secret.
 - Signed WordPress writes include a timestamp, single-use nonce, and HMAC signature.
 - Swagger is development-only, errors are returned as sanitized Problem Details, and privileged routes require the Admin role.
-- A successful account deletion removes the Technocare user and native carts; WooCommerce orders remain under the store's retention policy.
+- A successful account deletion removes the Technocare user and server-side account data. The guest cart stays only on the device and can be cleared from the cart screen.

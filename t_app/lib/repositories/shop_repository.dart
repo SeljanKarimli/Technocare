@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,26 +12,42 @@ class ShopRepository {
   static const _homeCacheKey = 'live_home.payload';
   static const _homeCacheTimeKey = 'live_home.cachedAt';
   static const _recentSearchesKey = 'shop.recentSearches';
+  static const _guestCartKey = 'shop.guestCart.v1';
   final ApiClient _api;
+  Future<void> _cartQueue = Future<void>.value();
 
   ShopRepository(this._api);
 
   Future<HomeContent> getHome({bool forceRefresh = false}) async {
     final preferences = await SharedPreferences.getInstance();
     final cachedJson = preferences.getString(_homeCacheKey);
-    final cachedAt = DateTime.tryParse(preferences.getString(_homeCacheTimeKey) ?? '');
-    if (!forceRefresh && cachedJson != null && cachedAt != null && DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
-      return HomeContent.fromJson(Map<String, dynamic>.from(jsonDecode(cachedJson) as Map));
+    final cachedAt = DateTime.tryParse(
+      preferences.getString(_homeCacheTimeKey) ?? '',
+    );
+    if (!forceRefresh &&
+        cachedJson != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
+      return HomeContent.fromJson(
+        Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+      );
     }
 
     try {
-      final data = Map<String, dynamic>.from(await _api.get('v1/content/home') as Map);
+      final data = Map<String, dynamic>.from(
+        await _api.get('v1/content/home') as Map,
+      );
       await preferences.setString(_homeCacheKey, jsonEncode(data));
-      await preferences.setString(_homeCacheTimeKey, DateTime.now().toIso8601String());
+      await preferences.setString(
+        _homeCacheTimeKey,
+        DateTime.now().toIso8601String(),
+      );
       return HomeContent.fromJson(data);
     } catch (_) {
       if (cachedJson != null) {
-        return HomeContent.fromJson(Map<String, dynamic>.from(jsonDecode(cachedJson) as Map));
+        return HomeContent.fromJson(
+          Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+        );
       }
       rethrow;
     }
@@ -48,17 +65,21 @@ class ShopRepository {
     String sort = 'relevance',
     Future<void>? abortTrigger,
   }) async {
-    final data = await _api.get('v1/shop/products', query: {
-      'q': query.trim(),
-      'page': page,
-      'pageSize': pageSize,
-      if (categoryId != null) 'category': categoryId,
-      if (brand != null && brand.isNotEmpty) 'brand': brand,
-      if (inStock) 'inStock': true,
-      if (minPrice != null) 'minPrice': minPrice,
-      if (maxPrice != null) 'maxPrice': maxPrice,
-      'sort': sort,
-    }, abortTrigger: abortTrigger);
+    final data = await _api.get(
+      'v1/shop/products',
+      query: {
+        'q': query.trim(),
+        'page': page,
+        'pageSize': pageSize,
+        if (categoryId != null) 'category': categoryId,
+        if (brand != null && brand.isNotEmpty) 'brand': brand,
+        if (inStock) 'inStock': true,
+        if (minPrice != null) 'minPrice': minPrice,
+        if (maxPrice != null) 'maxPrice': maxPrice,
+        'sort': sort,
+      },
+      abortTrigger: abortTrigger,
+    );
     return ProductPage.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
@@ -68,52 +89,125 @@ class ShopRepository {
   }
 
   Future<List<ShopTaxonomy>> getCategories() async {
-    final data = Map<String, dynamic>.from(await _api.get('v1/shop/categories') as Map);
+    final data = Map<String, dynamic>.from(
+      await _api.get('v1/shop/categories') as Map,
+    );
     return _parseTaxonomyItems(data['items']);
   }
 
   Future<List<ShopTaxonomy>> getBrands() async {
-    final data = Map<String, dynamic>.from(await _api.get('v1/shop/brands') as Map);
+    final data = Map<String, dynamic>.from(
+      await _api.get('v1/shop/brands') as Map,
+    );
     return _parseTaxonomyItems(data['items']);
   }
 
-  Future<ShopCart> getCart() async {
-    final data = await _api.get('v1/shop/cart', authenticated: true);
-    return ShopCart.fromJson(Map<String, dynamic>.from(data as Map));
-  }
+  /// The active cart is deliberately device-local so guests can shop without
+  /// creating an account. Product snapshots make the cart available offline;
+  /// every load attempts to refresh them from the live WooCommerce catalogue.
+  Future<ShopCart> getCart() => _withCartLock(() async {
+    final stored = await _readGuestCartItems();
+    final refreshed = <ShopCartItem>[];
+    for (final item in stored) {
+      ShopProduct product = item.product;
+      try {
+        product = await getProduct(item.productId);
+      } catch (_) {
+        // Retain the last known website snapshot while offline.
+      }
+      refreshed.add(_cartItem(product, item.quantity));
+    }
+    await _writeGuestCartItems(refreshed);
+    return _buildCart(refreshed);
+  });
 
-  Future<ShopCart> addToCart(int productId, {int quantity = 1}) async {
-    final data = await _api.post(
-      'v1/shop/cart/items',
-      authenticated: true,
-      body: {'productId': productId, 'quantity': quantity},
-    );
-    return ShopCart.fromJson(Map<String, dynamic>.from(data as Map));
-  }
+  Future<ShopCart> addToCart(
+    int productId, {
+    int quantity = 1,
+    ShopProduct? productSnapshot,
+  }) => _withCartLock(() async {
+    final items = await _readGuestCartItems();
+    final index = items.indexWhere((item) => item.productId == productId);
+    ShopProduct product;
+    try {
+      product = await getProduct(productId);
+    } catch (_) {
+      if (index >= 0) {
+        product = items[index].product;
+      } else if (productSnapshot != null) {
+        product = productSnapshot;
+      } else {
+        rethrow;
+      }
+    }
+    if (!product.inStock || !product.purchasable) {
+      throw const ApiException(
+        409,
+        'Bu məhsul hazırda sifariş üçün mövcud deyil.',
+      );
+    }
+    final requested = quantity.clamp(1, 99).toInt();
+    final nextQuantity = index < 0
+        ? requested
+        : (items[index].quantity + requested).clamp(1, 99).toInt();
+    final nextItem = _cartItem(product, nextQuantity);
+    if (index < 0) {
+      items.add(nextItem);
+    } else {
+      items[index] = nextItem;
+    }
+    await _writeGuestCartItems(items);
+    return _buildCart(items);
+  });
 
-  Future<ShopCart> updateCartItem(int productId, int quantity) async {
-    final data = await _api.patch(
-      'v1/shop/cart/items/$productId',
-      authenticated: true,
-      body: {'quantity': quantity},
-    );
-    return ShopCart.fromJson(Map<String, dynamic>.from(data as Map));
-  }
+  Future<ShopCart> updateCartItem(int productId, int quantity) =>
+      _withCartLock(() async {
+        final items = await _readGuestCartItems();
+        final index = items.indexWhere((item) => item.productId == productId);
+        if (index < 0) {
+          throw const ApiException(404, 'Məhsul səbətdə tapılmadı.');
+        }
+        if (quantity <= 0) {
+          items.removeAt(index);
+        } else {
+          items[index] = _cartItem(
+            items[index].product,
+            quantity.clamp(1, 99).toInt(),
+          );
+        }
+        await _writeGuestCartItems(items);
+        return _buildCart(items);
+      });
 
-  Future<ShopCart> removeCartItem(int productId) async {
-    final data = await _api.delete('v1/shop/cart/items/$productId', authenticated: true);
-    return ShopCart.fromJson(Map<String, dynamic>.from(data as Map));
-  }
+  Future<ShopCart> removeCartItem(int productId) => _withCartLock(() async {
+    final items = await _readGuestCartItems();
+    items.removeWhere((item) => item.productId == productId);
+    await _writeGuestCartItems(items);
+    return _buildCart(items);
+  });
 
-  Future<void> clearCart() => _api.delete('v1/shop/cart', authenticated: true);
+  Future<void> clearCart() => _withCartLock(() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove(_guestCartKey);
+  });
 
   Future<CheckoutSession> createCheckoutSession() async {
-    final data = await _api.post('v1/shop/checkout-session', authenticated: true);
+    final data = await _api.post(
+      'v1/shop/checkout-session',
+      authenticated: true,
+    );
     return CheckoutSession.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
   Future<List<ShopOrder>> getOrders({int page = 1}) async {
-    final data = Map<String, dynamic>.from(await _api.get('v1/shop/orders', authenticated: true, query: {'page': page}) as Map);
+    final data = Map<String, dynamic>.from(
+      await _api.get(
+            'v1/shop/orders',
+            authenticated: true,
+            query: {'page': page},
+          )
+          as Map,
+    );
     return (data['items'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => ShopOrder.fromJson(Map<String, dynamic>.from(item)))
@@ -132,7 +226,10 @@ class ShopRepository {
     final current = preferences.getStringList(_recentSearchesKey) ?? <String>[];
     current.removeWhere((item) => item.toLowerCase() == value.toLowerCase());
     current.insert(0, value);
-    await preferences.setStringList(_recentSearchesKey, current.take(8).toList());
+    await preferences.setStringList(
+      _recentSearchesKey,
+      current.take(8).toList(),
+    );
   }
 
   Future<void> clearRecentSearches() async {
@@ -140,8 +237,69 @@ class ShopRepository {
     await preferences.remove(_recentSearchesKey);
   }
 
-  List<ShopTaxonomy> _parseTaxonomyItems(dynamic value) => (value as List? ?? const [])
-      .whereType<Map>()
-      .map((item) => ShopTaxonomy.fromJson(Map<String, dynamic>.from(item)))
-      .toList();
+  List<ShopTaxonomy> _parseTaxonomyItems(dynamic value) =>
+      (value as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => ShopTaxonomy.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+
+  Future<T> _withCartLock<T>(Future<T> Function() operation) {
+    final result = _cartQueue.then((_) => operation());
+    _cartQueue = result.then<void>((_) {}, onError: (_, __) {});
+    return result;
+  }
+
+  Future<List<ShopCartItem>> _readGuestCartItems() async {
+    final preferences = await SharedPreferences.getInstance();
+    final payload = preferences.getString(_guestCartKey);
+    if (payload == null || payload.isEmpty) return <ShopCartItem>[];
+    try {
+      final decoded = jsonDecode(payload);
+      final rawItems = decoded is Map ? decoded['items'] : decoded;
+      return (rawItems as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => ShopCartItem.fromJson(Map<String, dynamic>.from(item)))
+          .where((item) => item.productId > 0 && item.quantity > 0)
+          .toList();
+    } on FormatException {
+      await preferences.remove(_guestCartKey);
+      return <ShopCartItem>[];
+    }
+  }
+
+  Future<void> _writeGuestCartItems(List<ShopCartItem> items) async {
+    final preferences = await SharedPreferences.getInstance();
+    if (items.isEmpty) {
+      await preferences.remove(_guestCartKey);
+      return;
+    }
+    await preferences.setString(
+      _guestCartKey,
+      jsonEncode({
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        'items': items.map((item) => item.toJson()).toList(),
+      }),
+    );
+  }
+
+  ShopCartItem _cartItem(ShopProduct product, int quantity) => ShopCartItem(
+    productId: product.id,
+    quantity: quantity,
+    product: product,
+    lineTotal: (product.price ?? 0) * quantity,
+  );
+
+  ShopCart _buildCart(List<ShopCartItem> items) {
+    final normalized = items
+        .map((item) => _cartItem(item.product, item.quantity))
+        .toList(growable: false);
+    final first = normalized.isEmpty ? null : normalized.first.product;
+    return ShopCart(
+      items: normalized,
+      itemCount: normalized.fold(0, (total, item) => total + item.quantity),
+      subtotal: normalized.fold(0, (total, item) => total + item.lineTotal),
+      currencyCode: first?.currencyCode ?? 'AZN',
+      currencySymbol: first?.currencySymbol ?? '₼',
+    );
+  }
 }

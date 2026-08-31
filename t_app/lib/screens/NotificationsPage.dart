@@ -10,30 +10,42 @@ class NotificationItem {
   final DateTime timestamp;
   final bool read;
 
-  const NotificationItem({required this.id, required this.title, required this.message, required this.timestamp, required this.read});
+  const NotificationItem({
+    required this.id,
+    required this.title,
+    required this.message,
+    required this.timestamp,
+    required this.read,
+  });
 
-  factory NotificationItem.fromJson(Map<String, dynamic> json) => NotificationItem(
+  factory NotificationItem.fromJson(Map<String, dynamic> json) =>
+      NotificationItem(
         id: (json['id'] ?? json['_id'] ?? '').toString(),
         title: (json['title'] ?? '').toString(),
         message: (json['message'] ?? '').toString(),
-        timestamp: DateTime.tryParse((json['timestamp'] ?? json['createdAt'] ?? '').toString()) ?? DateTime.now(),
+        timestamp:
+            DateTime.tryParse(
+              (json['timestamp'] ?? json['createdAt'] ?? '').toString(),
+            ) ??
+            DateTime.now(),
         read: json['read'] == true,
       );
 
   NotificationItem copyWith({bool? read}) => NotificationItem(
-        id: id,
-        title: title,
-        message: message,
-        timestamp: timestamp,
-        read: read ?? this.read,
-      );
+    id: id,
+    title: title,
+    message: message,
+    timestamp: timestamp,
+    read: read ?? this.read,
+  );
 }
 
 class NotificationsPage extends StatefulWidget {
   // Kept for source compatibility. ApiClient owns the base URL.
   final String? apiBaseUrl;
+  final bool guest;
 
-  const NotificationsPage({super.key, this.apiBaseUrl});
+  const NotificationsPage({super.key, this.apiBaseUrl, this.guest = false});
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
@@ -47,7 +59,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    if (widget.guest) {
+      _loading = false;
+    } else {
+      _loadNotifications();
+    }
   }
 
   Future<void> _loadNotifications() async {
@@ -59,19 +75,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
     try {
       final response = await context.read<ApiClient>().get(
-            'notifications/my-notifications',
-            authenticated: true,
-          );
+        'notifications/my-notifications',
+        authenticated: true,
+      );
       final raw = response is List
           ? response
           : response is Map
-              ? (response['items'] ?? response['data'] ?? const [])
-              : const [];
-      final parsed = (raw as List)
-          .whereType<Map>()
-          .map((item) => NotificationItem.fromJson(Map<String, dynamic>.from(item)))
-          .toList()
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          ? (response['items'] ?? response['data'] ?? const [])
+          : const [];
+      final parsed =
+          (raw as List)
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    NotificationItem.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+            ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       if (!mounted) return;
       setState(() {
         _items = parsed;
@@ -95,17 +115,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _markAsRead(NotificationItem notification) async {
     if (notification.read) return;
     setState(() {
-      _items = _items.map((item) => item.id == notification.id ? item.copyWith(read: true) : item).toList();
+      _items = _items
+          .map(
+            (item) =>
+                item.id == notification.id ? item.copyWith(read: true) : item,
+          )
+          .toList();
     });
     try {
       await context.read<ApiClient>().put(
-            'notifications/${notification.id}/read',
-            authenticated: true,
-          );
+        'notifications/${notification.id}/read',
+        authenticated: true,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _items = _items.map((item) => item.id == notification.id ? item.copyWith(read: false) : item).toList();
+        _items = _items
+            .map(
+              (item) => item.id == notification.id
+                  ? item.copyWith(read: false)
+                  : item,
+            )
+            .toList();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bildirişi yeniləmək mümkün olmadı.')),
@@ -129,10 +160,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
       appBar: AppBar(
         title: Text(unread == 0 ? 'Bildirişlər' : 'Bildirişlər ($unread)'),
         actions: [
-          IconButton(onPressed: _loadNotifications, icon: const Icon(Icons.refresh_rounded), tooltip: 'Yenilə'),
+          IconButton(
+            onPressed: widget.guest ? null : _loadNotifications,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Yenilə',
+          ),
         ],
       ),
-      body: RefreshIndicator(onRefresh: _loadNotifications, child: _body()),
+      body: RefreshIndicator(
+        onRefresh: widget.guest ? () async {} : _loadNotifications,
+        child: _body(),
+      ),
     );
   }
 
@@ -149,19 +187,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
             const SizedBox(height: 12),
             Text(_error!, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton.icon(onPressed: _loadNotifications, icon: const Icon(Icons.refresh_rounded), label: const Text('Yenidən cəhd et')),
+            FilledButton.icon(
+              onPressed: _loadNotifications,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Yenidən cəhd et'),
+            ),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return const _CenteredScrollable(
+      return _CenteredScrollable(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.notifications_none_rounded, size: 60),
-            SizedBox(height: 12),
-            Text('Hələ bildirişiniz yoxdur.'),
+            const Icon(Icons.notifications_none_rounded, size: 60),
+            const SizedBox(height: 12),
+            const Text('Hələ bildirişiniz yoxdur.'),
+            if (widget.guest) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Alış-veriş və WhatsApp sifarişi üçün giriş tələb olunmur.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54),
+              ),
+            ],
           ],
         ),
       );
@@ -177,16 +227,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
           child: ListTile(
             onTap: () => _markAsRead(notification),
             leading: Icon(
-              notification.read ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
+              notification.read
+                  ? Icons.notifications_none_rounded
+                  : Icons.notifications_active_rounded,
               color: notification.read ? Colors.grey : const Color(0xFF15803D),
             ),
             title: Text(
               notification.title,
-              style: TextStyle(fontWeight: notification.read ? FontWeight.w600 : FontWeight.w800),
+              style: TextStyle(
+                fontWeight: notification.read
+                    ? FontWeight.w600
+                    : FontWeight.w800,
+              ),
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text('${notification.message}\n${_formatTimestamp(notification.timestamp)}'),
+              child: Text(
+                '${notification.message}\n${_formatTimestamp(notification.timestamp)}',
+              ),
             ),
             isThreeLine: true,
           ),
@@ -203,10 +261,13 @@ class _CenteredScrollable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(height: MediaQuery.sizeOf(context).height * .28),
-          Padding(padding: const EdgeInsets.all(24), child: Center(child: child)),
-        ],
-      );
+    physics: const AlwaysScrollableScrollPhysics(),
+    children: [
+      SizedBox(height: MediaQuery.sizeOf(context).height * .28),
+      Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(child: child),
+      ),
+    ],
+  );
 }

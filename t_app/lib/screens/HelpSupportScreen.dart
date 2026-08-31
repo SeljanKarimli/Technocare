@@ -1,5 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../services/whatsapp_order_service.dart';
+
 // FIX: Define methods inside the class
 
 // NEW: Help & Support Screen
@@ -7,22 +11,23 @@ class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({super.key});
 
   Future<void> _launchPhone(String phone) async {
-final Uri url = Uri(scheme: 'tel', path: phone);
-await launchUrl(url);
-}
+    final Uri url = Uri(scheme: 'tel', path: phone);
+    await launchUrl(url);
+  }
 
-
-Future<void> _launchEmail(String email) async {
-final Uri url = Uri(scheme: 'mailto', path: email);
-await launchUrl(url);
-}
-
+  Future<void> _launchEmail(String email) async {
+    final Uri url = Uri(scheme: 'mailto', path: email);
+    await launchUrl(url);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Yardım və Dəstək', style: TextStyle(color: Colors.black)),
+        title: const Text(
+          'Yardım və Dəstək',
+          style: TextStyle(color: Colors.black),
+        ),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -38,7 +43,11 @@ await launchUrl(url);
               ),
               child: Row(
                 children: [
-                  Icon(Icons.support_agent, color: Colors.green.shade700, size: 32),
+                  Icon(
+                    Icons.support_agent,
+                    color: Colors.green.shade700,
+                    size: 32,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -108,10 +117,14 @@ await launchUrl(url);
               Icons.chat_bubble_outline,
               'Canlı Çat',
               'İş saatlarında aktivdir',
-              () {
-                final Uri whatsappUrl = Uri.parse(
-                    "https://wa.me/994102346357?text=Salam+Technocare%2C+M%C9%99n%C9%99+k%C3%B6m%C9%99k+ed%C9%99+bil%C9%99rsiniz?");
-                launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+              () async {
+                final whatsappUrl = await context
+                    .read<WhatsAppOrderService>()
+                    .createChatUri();
+                await launchUrl(
+                  whatsappUrl,
+                  mode: LaunchMode.externalApplication,
+                );
               },
             ),
           ],
@@ -126,16 +139,27 @@ await launchUrl(url);
       elevation: 0.5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: 16.0,
+          vertical: 8.0,
+        ),
+        childrenPadding: const EdgeInsets.symmetric(
+          horizontal: 16.0,
+          vertical: 8.0,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.0),
+        ),
         title: Text(
           question,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Text(
               answer,
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
@@ -146,7 +170,12 @@ await launchUrl(url);
     );
   }
 
-  Widget _buildContactCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
+  Widget _buildContactCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
@@ -181,18 +210,12 @@ await launchUrl(url);
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey[400],
-              ),
+              Icon(Icons.chevron_right, color: Colors.grey[400]),
             ],
           ),
         ),

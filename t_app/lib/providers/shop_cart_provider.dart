@@ -17,8 +17,13 @@ class ShopCartProvider extends ChangeNotifier {
 
   Future<void> load() => _run(() => repository.getCart());
 
-  Future<void> add(int productId, {int quantity = 1}) =>
-      _run(() => repository.addToCart(productId, quantity: quantity));
+  Future<void> add(ShopProduct product, {int quantity = 1}) => _run(
+    () => repository.addToCart(
+      product.id,
+      quantity: quantity,
+      productSnapshot: product,
+    ),
+  );
 
   Future<void> update(int productId, int quantity) =>
       _run(() => repository.updateCartItem(productId, quantity));
