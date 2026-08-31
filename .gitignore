@@ -85,3 +85,13 @@ app.*.map.json
 **/*.jks
 **/*.keystore
 
+# WordPress plugin build output and local site files
+wordpress/**/vendor/
+wordpress/**/*.zip
+wordpress/**/.phpunit.result.cache
+wp-config.php
+
+# Oversized full-page captures; normalized mobile QA evidence is tracked.
+design-qa-artifacts/reference-home.png
+design-qa-artifacts/reference-shop.png
+

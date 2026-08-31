@@ -1,0 +1,135 @@
+using System.Reflection;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using backend.Controllers;
+using backend.Models;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Xunit;
+
+namespace backendMAIN.Tests;
+
+public sealed class ApiContractTests
+{
+    [Fact]
+    public void ProductEnvelope_UsesStableCamelCaseContract()
+    {
+        var payload = new PagedShopProductsResponse
+        {
+            Page = 1,
+            PageSize = 20,
+            Total = 1,
+            TotalPages = 1,
+            Items = [new ShopProductDto { Id = 42, Name = "Siemens S7", Sku = "6ES7" }],
+        };
+
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Contains("\"items\"", json);
+        Assert.Contains("\"pageSize\":20", json);
+        Assert.Contains("\"sku\":\"6ES7\"", json);
+    }
+
+    [Theory]
+    [InlineData(nameof(ShopController.Cart))]
+    [InlineData(nameof(ShopController.AddCartItem))]
+    [InlineData(nameof(ShopController.CheckoutSession))]
+    [InlineData(nameof(ShopController.Orders))]
+    public void ProtectedShopActions_RequireAuthorization(string methodName)
+    {
+        var method = typeof(ShopController).GetMethod(methodName)
+            ?? throw new InvalidOperationException($"Missing action {methodName}.");
+
+        Assert.NotNull(method.GetCustomAttribute<AuthorizeAttribute>());
+        Assert.Null(method.GetCustomAttribute<AllowAnonymousAttribute>());
+    }
+
+    [Fact]
+    public async Task UnexpectedErrors_ReturnSanitizedProblemDetails()
+    {
+        var handler = new ApiExceptionHandler(NullLogger<ApiExceptionHandler>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await handler.TryHandleAsync(context, new InvalidOperationException("secret database detail"), default);
+        context.Response.Body.Position = 0;
+        var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+        Assert.DoesNotContain("secret database detail", body);
+        Assert.Contains("Please try again later", body);
+    }
+
+    [Fact]
+    public async Task WebsiteContent_UsesFreshFiveMinuteCache()
+    {
+        var handler = new SequenceHandler(
+            Json(HttpStatusCode.OK, "{\"schemaVersion\":1,\"updatedAt\":\"2026-08-31T00:00:00Z\",\"sourceUrl\":\"https://technocare.az\",\"sections\":[]}"));
+        var client = CreateSiteClient(handler, cacheMinutes: 5);
+
+        var first = await client.GetHomeAsync(default);
+        var second = await client.GetHomeAsync(default);
+
+        Assert.Equal(1, handler.CallCount);
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public async Task WebsiteContent_ReturnsStaleValueWhenDependencyFails()
+    {
+        var handler = new SequenceHandler(
+            Json(HttpStatusCode.OK, "{\"schemaVersion\":1,\"updatedAt\":\"2026-08-31T00:00:00Z\",\"sourceUrl\":\"https://technocare.az\",\"sections\":[]}"),
+            _ => throw new HttpRequestException("dependency offline"));
+        var client = CreateSiteClient(handler, cacheMinutes: 0);
+
+        var first = await client.GetHomeAsync(default);
+        var stale = await client.GetHomeAsync(default);
+
+        Assert.Equal(2, handler.CallCount);
+        Assert.Equal(first.UpdatedAt, stale.UpdatedAt);
+    }
+
+    private static TechnocareSiteClient CreateSiteClient(HttpMessageHandler handler, int cacheMinutes)
+    {
+        var http = new HttpClient(handler) { BaseAddress = new Uri("https://technocare.az/") };
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var options = Options.Create(new TechnocareSiteOptions
+        {
+            BaseUrl = "https://technocare.az",
+            CacheMinutes = cacheMinutes,
+            TimeoutSeconds = 15,
+            SharedSecret = "test-shared-secret",
+        });
+        return new TechnocareSiteClient(http, cache, options, NullLogger<TechnocareSiteClient>.Instance);
+    }
+
+    private static Func<HttpRequestMessage, HttpResponseMessage> Json(HttpStatusCode statusCode, string body) => _ =>
+    {
+        var response = new HttpResponseMessage(statusCode)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        };
+        response.Headers.ETag = new EntityTagHeaderValue("\"home-v1\"");
+        return response;
+    };
+
+    private sealed class SequenceHandler(params Func<HttpRequestMessage, HttpResponseMessage>[] responses) : HttpMessageHandler
+    {
+        private int _index;
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            var response = responses[Math.Min(_index, responses.Length - 1)](request);
+            _index++;
+            return Task.FromResult(response);
+        }
+    }
+}

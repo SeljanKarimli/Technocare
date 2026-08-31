@@ -1,151 +1,151 @@
-# Technocare
+# Technocare live mobile app
 
-Technocare is a full-stack engineering-services and commerce platform. The repository contains an ASP.NET Core API backed by MongoDB, a cross-platform Flutter client, and a browser-based administration panel served by the API.
-
-## What the project provides
-
-- Customer registration, email verification, login, password recovery, and JWT-based sessions
-- Product and category browsing, filtering, carts, checkout, and order tracking
-- Engineering project catalogue and detail pages
-- Service and education application forms
-- User and administrator notifications
-- Administrator workflows for products, categories, orders, users, applications, projects, and notifications
-- Flutter targets for Android, iOS, web, Windows, Linux, and macOS
+Technocare is a Flutter Android/iOS application backed by ASP.NET Core 8 and the live [technocare.az](https://technocare.az/) WordPress/WooCommerce site. WordPress remains the source of truth for homepage sections, services, education, projects, products, prices, stock, brands, and categories. Supported website changes reach the app through a five-minute conditional cache without a mobile release.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Client["Flutter client"] -->|JSON / HTTP API| API["ASP.NET Core 8 API"]
-    Admin["Static admin panel"] -->|JSON / HTTP API| API
-    API --> MongoDB[(MongoDB)]
-    API --> SMTP["SMTP email service"]
+    App[Flutter app] -->|HTTPS + JWT| API[ASP.NET Core gateway]
+    API -->|Conditional JSON requests| WP[WordPress app API plugin]
+    WP --> Woo[WooCommerce catalogue and checkout]
+    API --> Mongo[(MongoDB users, carts, applications, notifications)]
+    API --> SMTP[SMTP verification and recovery]
+    Woo -->|technocare://checkout| App
 ```
 
-| Area | Location | Main technologies |
-| --- | --- | --- |
-| Backend API | `backendMAIN/` | ASP.NET Core 8, MongoDB Driver, JWT, BCrypt, MailKit, Swagger |
-| Admin panel | `backendMAIN/wwwroot/admin/` | HTML, CSS, JavaScript, Axios |
-| Client app | `t_app/` | Flutter, Dart, Provider, SharedPreferences, Firebase Messaging |
+- Flutter never parses Elementor HTML and never trusts client-supplied prices.
+- The WordPress plugin converts supported Elementor sections into ordered, typed JSON blocks.
+- The backend isolates the app from WordPress response details, retries safe reads, caches for five minutes, and returns stale content during temporary website failures.
+- The native cart stores numeric WooCommerce product IDs. WooCommerce revalidates product availability and current pricing before checkout.
+- Payment, address, and delivery data remain inside WooCommerce checkout.
+- Legacy MongoDB products, carts, orders, categories, and projects are retained behind admin-only `/api/internal/legacy/*` routes; the mobile app does not use them.
 
-## Repository structure
+## Repository layout
 
-```text
-.
-|-- backendMAIN/
-|   |-- Controllers/       # REST API endpoints
-|   |-- Models/            # MongoDB documents and request/response models
-|   |-- Services/          # Application and persistence services
-|   |-- wwwroot/admin/     # Static administration interface
-|   |-- Program.cs         # Dependency injection and HTTP pipeline
-|   `-- backend.sln
-|-- t_app/
-|   |-- lib/screens/       # Flutter screens
-|   |-- lib/main.dart      # App entry point, API client, and auth provider
-|   |-- assets/            # Images and application icons
-|   `-- pubspec.yaml
-`-- README.md
-```
+| Path | Purpose |
+| --- | --- |
+| `wordpress/technocare-app-api/` | Versioned WordPress/WooCommerce integration plugin |
+| `backendMAIN/` | ASP.NET Core gateway, identity, applications, notifications, cart coordination, admin UI |
+| `backendMAIN.Tests/` | Backend contract, authorization, and sanitized-error tests |
+| `t_app/` | Flutter Android/iOS client |
+| `.github/workflows/ci.yml` | Backend, Flutter, and WordPress validation |
 
-## Prerequisites
+## Public API
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- A MongoDB deployment (local MongoDB or MongoDB Atlas)
-- SMTP credentials for transactional email
-- [Flutter](https://docs.flutter.dev/get-started/install) with Dart 3.8 or later
-- Platform tooling for the Flutter target you plan to run, such as Android Studio, Xcode, or Visual Studio with Desktop development with C++
+WordPress plugin:
 
-## Backend configuration
+| Method | Route |
+| --- | --- |
+| GET | `/wp-json/technocare-app/v1/home` |
+| GET | `/wp-json/technocare-app/v1/products` |
+| GET | `/wp-json/technocare-app/v1/products/{id}` |
+| GET | `/wp-json/technocare-app/v1/categories` |
+| GET | `/wp-json/technocare-app/v1/brands` |
+| GET | `/wp-json/technocare-app/v1/projects` |
+| GET | `/wp-json/technocare-app/v1/services` |
+| GET | `/wp-json/technocare-app/v1/education` |
 
-The real configuration files are intentionally ignored because they contain credentials. Create a local configuration from the supplied template:
+The signed checkout and order endpoints are for the backend only.
+
+Backend gateway:
+
+| Access | Route |
+| --- | --- |
+| Public | `GET /api/v1/content/home` |
+| Public | `GET /api/v1/content/projects`, `/services`, `/education` |
+| Public | `GET /api/v1/shop/products`, `/products/{id}`, `/categories`, `/brands` |
+| JWT | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
+| JWT | `/api/notifications/my-notifications` |
+| Public submission | `/api/serviceapplications`, `/api/educationapplications` |
+
+Product search supports Azerbaijani text, exact/prefix SKU ranking, product name, brand/category, and description matching; category, brand, stock, and price filters; pagination; and relevance, popularity, latest, name, and price sorting.
+
+## 1. Install the WordPress plugin
+
+1. Copy `wordpress/technocare-app-api` to `wp-content/plugins/` on technocare.az.
+2. Define a long random shared secret outside the repository in `wp-config.php`:
+
+   ```php
+   define('TECHNOCARE_APP_SHARED_SECRET', 'replace-with-at-least-32-random-characters');
+   ```
+
+3. Activate **Technocare App API** in WordPress.
+4. Open **Settings → Technocare App**, select the published homepage, and confirm supported section visibility/order.
+5. Ensure WooCommerce checkout pages and pretty permalinks are configured.
+
+The plugin reads rendered published content, WooCommerce records, and portfolio pages. Header/footer markup and unsupported sections are not sent. A genuinely new Elementor layout still needs a matching typed block and Flutter renderer.
+
+## 2. Configure and run the backend
+
+Prerequisites: .NET 8 SDK, MongoDB, SMTP credentials, and a valid HTTPS hostname such as `https://api.technocare.az`.
 
 ```powershell
 Copy-Item backendMAIN/appsettings.example.json backendMAIN/appsettings.Development.json
+dotnet restore backendMAIN/backend.csproj
+dotnet run --project backendMAIN/backend.csproj --launch-profile https
 ```
 
-Fill in these configuration groups:
+Set secrets using environment variables in production:
 
-| Group | Purpose |
-| --- | --- |
-| `MongoDbSettings` | MongoDB connection string, database name, and collection names |
-| `JwtSettings` | Signing secret, token lifetime, issuer, and audience |
-| `AdminSettings` | Bootstrap administrator email address and password |
-| `EmailSettings` | SMTP host, port, account, password, sender address, and sender name |
-
-ASP.NET Core environment variables can be used instead of storing secrets in JSON. Nested keys use double underscores, for example `MongoDbSettings__ConnectionString`, `JwtSettings__Secret`, `AdminSettings__Password`, and `EmailSettings__SmtpPass`.
-
-Never commit production credentials, local `appsettings` files, Android signing files, or publish profiles. If credentials have previously been committed, remove them from Git history and rotate them; adding a file to `.gitignore` does not erase earlier commits.
-
-## Run the backend
-
-```powershell
-Set-Location backendMAIN
-dotnet restore
-dotnet run --launch-profile https
+```text
+MongoDbSettings__ConnectionString
+JwtSettings__Secret
+TechnocareSite__SharedSecret
+EmailSettings__SmtpPass
+AdminSettings__Password
 ```
 
-With the checked-in launch profile, Swagger is available at `https://localhost:7244/swagger`.
+`TechnocareSite__SharedSecret` must exactly match `TECHNOCARE_APP_SHARED_SECRET`. Configure `Cors__AllowedOrigins__0` only for trusted browser origins. Native mobile requests do not require permissive CORS.
 
-The main API groups are:
+Deploy behind a reverse proxy that forwards `X-Forwarded-For` and `X-Forwarded-Proto`, binds a valid TLS certificate, and redirects HTTP to HTTPS. `/health` checks WordPress and MongoDB dependencies.
 
-| Resource | Base route |
-| --- | --- |
-| Authentication and users | `/api/auth` |
-| Administrator actions | `/api/admin` |
-| Products | `/api/products` |
-| Categories | `/api/categories` |
-| Carts | `/api/carts` |
-| Orders | `/api/orders` |
-| Projects | `/api/projects` |
-| Notifications | `/api/notifications` |
-| Service applications | `/api/serviceapplications` |
-| Education applications | `/api/educationapplications` |
+## 3. Run the Flutter app
 
-Use Swagger for the complete request and response contract.
-
-## Run the Flutter app
+Prerequisites: Flutter stable with Dart 3.8 or later and Android Studio or Xcode.
 
 ```powershell
 Set-Location t_app
 flutter pub get
-flutter run
+flutter run --dart-define=API_BASE_URL=https://api.technocare.az/api
 ```
 
-The current client contains the deployed API URL in `lib/main.dart` and several screen files. Update all occurrences when targeting a local backend. Typical local values are:
+Use the same define for release builds:
 
-- Android emulator: `https://10.0.2.2:7244/api`
-- Desktop or web on the same machine: `https://localhost:7244/api`
-- Physical device: the development machine's reachable LAN address
+```powershell
+flutter build appbundle --release --dart-define=API_BASE_URL=https://api.technocare.az/api
+flutter build ipa --release --dart-define=API_BASE_URL=https://api.technocare.az/api
+```
 
-The Android manifest must allow network access, and a physical device must be able to reach the API host and trust its HTTPS certificate.
+JWTs are stored with platform secure storage. The app registers `technocare://checkout/success` and `technocare://checkout/cancel` for WooCommerce checkout returns. Android cleartext traffic and invalid-certificate overrides are disabled.
 
 ## Validation
 
-Run the backend and client checks independently:
-
 ```powershell
-# Backend
-dotnet restore backendMAIN/backend.sln
-dotnet build backendMAIN/backend.sln --no-restore
-dotnet test backendMAIN/backend.sln --no-build
+dotnet test backendMAIN.Tests/backendMAIN.Tests.csproj
 
-# Flutter
 Set-Location t_app
-flutter pub get
-flutter analyze
+flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test
+
+php -l ..\wordpress\technocare-app-api\technocare-app-api.php
 ```
 
-There is currently no dedicated backend test project. The Flutter widget test is still based on the generated starter test and should be updated to exercise `TechnocareApp` before it is used as a CI quality gate.
+CI runs the same backend, Flutter, WordPress syntax, and insecure-client checks on `main`, pull requests, and `codex/**` branches.
 
-## Production checklist
+## Rollout order
 
-Before a production deployment:
+1. Install and verify the WordPress plugin endpoints.
+2. Deploy the backend to a valid HTTPS endpoint with production secrets.
+3. Set DNS/TLS for `api.technocare.az` (or supply another HTTPS URL at build time).
+4. Produce an internal Android/iOS build and complete checkout/app-link tests.
+5. Release the mobile builds.
 
-- Move every credential to a managed secret store or environment variables and rotate previously exposed values.
-- Remove hard-coded administrator credentials and provision administrators through a controlled process.
-- Verify authentication middleware and apply explicit authorization policies to every privileged endpoint.
-- Restrict CORS to trusted origins and expose Swagger only where intended.
-- Require valid HTTPS certificates; do not accept invalid certificates in the client.
-- Replace repeated hard-coded API URLs with a single environment-specific client configuration.
-- Add backend integration tests and replace the generated Flutter smoke test.
+After deployment, verify that editing homepage text, changing product price/stock, reordering a supported section, and hiding a section appear in the app within five minutes.
+
+## Security notes
+
+- Do not commit `appsettings.*.json`, `.env` files, signing keys, certificates, SMTP passwords, JWT secrets, or the WordPress shared secret.
+- Signed WordPress writes include a timestamp, single-use nonce, and HMAC signature.
+- Swagger is development-only, errors are returned as sanitized Problem Details, and privileged routes require the Admin role.
+- A successful account deletion removes the Technocare user and native carts; WooCommerce orders remain under the store's retention policy.
