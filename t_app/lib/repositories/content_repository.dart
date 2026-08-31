@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api_client.dart';
 import '../core/api_config.dart';
+import '../models/content_defaults.dart';
 import '../models/site_content.dart';
 
 class ContentRepository {
@@ -20,19 +21,37 @@ class ContentRepository {
     final timeKey = 'content.$kind.cachedAt';
     final cached = preferences.getString(payloadKey);
     final cachedAt = DateTime.tryParse(preferences.getString(timeKey) ?? '');
-    if (!forceRefresh && cached != null && cachedAt != null && DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
-      return SiteContentCollection.fromJson(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+    if (!forceRefresh &&
+        cached != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
+      return RequiredContentCatalog.complete(
+        kind,
+        SiteContentCollection.fromJson(
+          Map<String, dynamic>.from(jsonDecode(cached) as Map),
+        ),
+      );
     }
     try {
-      final response = Map<String, dynamic>.from(await _api.get('v1/content/$kind') as Map);
+      final response = Map<String, dynamic>.from(
+        await _api.get('v1/content/$kind') as Map,
+      );
       await preferences.setString(payloadKey, jsonEncode(response));
       await preferences.setString(timeKey, DateTime.now().toIso8601String());
-      return SiteContentCollection.fromJson(response);
+      return RequiredContentCatalog.complete(
+        kind,
+        SiteContentCollection.fromJson(response),
+      );
     } catch (_) {
       if (cached != null) {
-        return SiteContentCollection.fromJson(Map<String, dynamic>.from(jsonDecode(cached) as Map));
+        return RequiredContentCatalog.complete(
+          kind,
+          SiteContentCollection.fromJson(
+            Map<String, dynamic>.from(jsonDecode(cached) as Map),
+          ),
+        );
       }
-      rethrow;
+      return RequiredContentCatalog.fallback(kind);
     }
   }
 }

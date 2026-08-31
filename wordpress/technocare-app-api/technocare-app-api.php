@@ -658,10 +658,29 @@ final class Technocare_App_API
             }
         }
         $items = [];
+        $seen_keys = [];
         foreach (array_values(array_unique($page_ids)) as $page_id) {
             $page = get_post($page_id);
             if ($page instanceof WP_Post && $page->post_status === 'publish') {
-                $items[] = self::map_content_page($page);
+                $item = self::map_content_page($page);
+                $key = self::collection_item_key($landing_slug, $item['title']);
+                if ($key !== null && isset($seen_keys[$key])) {
+                    continue;
+                }
+                $items[] = $item;
+                if ($key !== null) {
+                    $seen_keys[$key] = true;
+                }
+            }
+        }
+        foreach (self::extract_inline_collection_items($content, $landing_slug, $landing) as $item) {
+            $key = self::collection_item_key($landing_slug, $item['title']);
+            if ($key !== null && isset($seen_keys[$key])) {
+                continue;
+            }
+            $items[] = $item;
+            if ($key !== null) {
+                $seen_keys[$key] = true;
             }
         }
         return self::cacheable_response([
@@ -670,6 +689,121 @@ final class Technocare_App_API
             'sourceUrl' => get_permalink($landing),
             'items' => $items,
         ], (int) get_post_modified_time('U', true, $landing), 300);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private static function extract_inline_collection_items(string $html, string $landing_slug, WP_Post $landing): array
+    {
+        if (!class_exists('DOMDocument') || trim($html) === '') {
+            return [];
+        }
+        $document = new DOMDocument('1.0', 'UTF-8');
+        libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        $xpath = new DOMXPath($document);
+        $items = [];
+        $seen = [];
+        foreach ($xpath->query('//h2|//h3|//h4') ?: [] as $heading) {
+            if (!$heading instanceof DOMElement) {
+                continue;
+            }
+            $title = self::clean_text($heading->textContent ?? '');
+            $key = self::collection_item_key($landing_slug, $title);
+            if ($key === null || isset($seen[$key])) {
+                continue;
+            }
+
+            $container = $heading;
+            $candidate = $heading->parentNode;
+            for ($depth = 0; $depth < 6 && $candidate instanceof DOMElement; $depth++) {
+                $candidate_text = self::clean_text($candidate->textContent ?? '');
+                $container = $candidate;
+                if (mb_strlen($candidate_text) > mb_strlen($title) + 20) {
+                    break;
+                }
+                $candidate = $candidate->parentNode;
+            }
+
+            $plain = self::clean_text($container->textContent ?? '');
+            if (str_starts_with($plain, $title)) {
+                $plain = trim(mb_substr($plain, mb_strlen($title)));
+            }
+            $image_url = '';
+            foreach ($xpath->query('.//img', $container) ?: [] as $image) {
+                if (!$image instanceof DOMElement) {
+                    continue;
+                }
+                $source = $image->getAttribute('data-lazy-src') ?: $image->getAttribute('src');
+                if ($source !== '' && !str_starts_with($source, 'data:')) {
+                    $image_url = esc_url_raw($source);
+                    break;
+                }
+            }
+
+            $url = get_permalink($landing);
+            foreach ($xpath->query('.//a[@href]', $container) ?: [] as $anchor) {
+                if (!$anchor instanceof DOMElement) {
+                    continue;
+                }
+                $href = trim($anchor->getAttribute('href'));
+                if ($href === '') {
+                    continue;
+                }
+                if (str_starts_with($href, '#')) {
+                    $url = get_permalink($landing) . $href;
+                } elseif (str_starts_with($href, 'http://') || str_starts_with($href, 'https://')) {
+                    $url = esc_url_raw($href);
+                } else {
+                    $url = esc_url_raw(home_url('/' . ltrim($href, '/')));
+                }
+                break;
+            }
+
+            $items[] = [
+                'id' => -abs(crc32($landing_slug . '|' . $key)),
+                'title' => $title,
+                'summary' => mb_substr($plain !== '' ? $plain : $title, 0, 280),
+                'body' => $plain,
+                'imageUrl' => $image_url,
+                'images' => $image_url !== '' ? [$image_url] : [],
+                'url' => $url,
+                'updatedAt' => get_post_modified_time(DATE_ATOM, true, $landing),
+            ];
+            $seen[$key] = true;
+        }
+        return $items;
+    }
+
+    private static function collection_item_key(string $landing_slug, string $title): ?string
+    {
+        $value = strtr(mb_strtolower(self::clean_text($title), 'UTF-8'), [
+            'ə' => 'e', 'ı' => 'i', 'ş' => 's', 'ç' => 'c', 'ö' => 'o', 'ü' => 'u', 'ğ' => 'g',
+        ]);
+        $value = trim((string) preg_replace('/[^a-z0-9]+/', ' ', $value));
+        if ($landing_slug === 'xidmetler') {
+            if ($value === 'avtomatika' || str_starts_with($value, 'avtomatika xidmet')) {
+                return 'automation';
+            }
+            if ($value === 'elektronika' || str_starts_with($value, 'elektronika xidmet')) {
+                return 'electronics';
+            }
+            if ($value === 'energetika' || str_starts_with($value, 'energetika xidmet') || str_starts_with($value, 'enerji xidmet')) {
+                return 'energy';
+            }
+        }
+        if ($landing_slug === 'tedris') {
+            if (str_contains($value, 'avtomatika muhendisliyi')) {
+                return 'automation';
+            }
+            if (str_contains($value, 'elektronika muhendisliyi')) {
+                return 'electronics';
+            }
+            if (str_contains($value, 'elektrik muhendisliyi')) {
+                return 'electrical';
+            }
+        }
+        return null;
     }
 
     /** @return array<string, mixed> */
