@@ -39,6 +39,7 @@ public class EducationApplicationsController : ControllerBase
     }
 
     [HttpGet] // GET /api/applications // Only Admins can view all applications
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<EducationApplication>))] 
     [ProducesResponseType(StatusCodes.Status403Forbidden)] // Explicitly define forbidden response type
     public async Task<ActionResult<List<EducationApplication>>> GetAllEducationApplications()
@@ -47,6 +48,7 @@ public class EducationApplicationsController : ControllerBase
         return Ok(educationApplications); // Returns 200 OK with the list of applications
     }
     [HttpGet("{id:length(24)}")] // Only Admins can view a specific application
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(EducationApplication))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -61,6 +63,7 @@ public class EducationApplicationsController : ControllerBase
         return Ok(educationApplication); // Returns 200 OK with the application object
     }
     [HttpPut("{id:length(24)}/status")] // Only Admins can update application status
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -81,6 +84,7 @@ public class EducationApplicationsController : ControllerBase
         return NoContent(); // Returns 204 No Content on successful update
     }
     [HttpDelete("{id:length(24)}")] // Only Admins can delete applications
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

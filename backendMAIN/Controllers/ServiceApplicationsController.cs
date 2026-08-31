@@ -2,6 +2,7 @@
 using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
@@ -23,6 +24,7 @@ public class ServiceApplicationsController : ControllerBase
     }
 
     [HttpPost] // POST /api/serviceapplications
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(ServiceApplication))] // Explicitly define success response type
     [ProducesResponseType(StatusCodes.Status400BadRequest)] // Explicitly define bad request response type
     public async Task<IActionResult> SubmitApplication([FromBody] CreateServiceApplicationRequest request)
@@ -37,12 +39,14 @@ public class ServiceApplicationsController : ControllerBase
     }
 
     [HttpGet] // GET /api/serviceapplications // Only Admins can view all applications
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<ServiceApplication>))]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<List<ServiceApplication>> GetAllApplications() =>
         await _serviceApplicationService.GetAllServiceApplicationsAsync();
 
     [HttpGet("{id:length(24)}", Name = "GetApplicationById")] // Only Admins can get a single application
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ServiceApplication))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -62,6 +66,7 @@ public class ServiceApplicationsController : ControllerBase
     }
 
     [HttpPut("{id:length(24)}/status")] // Only Admins can update application status
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -82,6 +87,7 @@ public class ServiceApplicationsController : ControllerBase
         return NoContent(); // Returns 204 No Content on successful update
     }
     [HttpDelete("{id:length(24)}")] // Only Admins can delete applications
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

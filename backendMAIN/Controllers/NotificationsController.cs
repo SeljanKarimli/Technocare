@@ -11,6 +11,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")] // Base route: /api/notifications
+    [Authorize]
     public class NotificationsController : ControllerBase
     {
         private readonly NotificationService _notificationService;
@@ -46,6 +47,7 @@ namespace backend.Controllers
         }
 
         [HttpPost] // POST /api/notifications
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> SendNotification([FromBody] CreateNotificationRequest request)
         {
             if (!ModelState.IsValid)
@@ -57,6 +59,7 @@ namespace backend.Controllers
         }
 
         [HttpGet("all")] // GET /api/notifications/all
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<List<Notification>>> GetAllNotifications()
         {
             // Admin can view all notifications, regardless of userId
@@ -65,6 +68,7 @@ namespace backend.Controllers
         }
 
         [HttpDelete("{id:length(24)}")] 
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteNotification(string id)
         {
             var success = await _notificationService.DeleteNotificationAsync(id);

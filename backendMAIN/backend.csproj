@@ -11,17 +11,11 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-		<PackageReference Include="MailKit" Version="4.13.0" />
+		<PackageReference Include="MailKit" Version="4.17.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.17" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.8">
-			<PrivateAssets>all</PrivateAssets>
-			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-		</PackageReference>
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.12.1" />
-		<PackageReference Include="MimeKit" Version="4.13.0" />
-		<PackageReference Include="MongoDB.Bson" Version="3.4.0" />
+		<PackageReference Include="MimeKit" Version="4.17.0" />
 		<PackageReference Include="MongoDB.Driver" Version="3.4.0" />
-		<PackageReference Include="MongoDB.Driver.Core" Version="2.30.0" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.12.1" />
 	</ItemGroup>

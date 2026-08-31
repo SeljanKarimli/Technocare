@@ -1,22 +1,33 @@
-// Program.cs
-using backend.Models;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using backend;
+using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Options; // Make sure this is included for IOptions
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models; // Added for OpenApiInfo
+using Microsoft.OpenApi.Models;
 using MongoDB.Bson.Serialization;
-using System.Text;
-using System.Text.Json; // Added for JsonNamingPolicy
-using System.Text.Json.Serialization; // Added for JsonIgnoreCondition
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+builder.Services.AddOptions<MongoDbSettings>()
+    .Bind(builder.Configuration.GetSection("MongoDbSettings"))
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.ConnectionString), "MongoDB connection string is required.")
+    .ValidateOnStart();
+builder.Services.AddOptions<JwtSettings>()
+    .Bind(builder.Configuration.GetSection("JwtSettings"))
+    .Validate(settings => !string.IsNullOrWhiteSpace(settings.Secret) && settings.Secret.Length >= 32, "JWT secret must be at least 32 characters.")
+    .ValidateOnStart();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddOptions<TechnocareSiteOptions>()
+    .Bind(builder.Configuration.GetSection(TechnocareSiteOptions.SectionName))
+    .Validate(settings => Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps, "TechnocareSite:BaseUrl must be HTTPS.")
+    .ValidateOnStart();
+
 builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ServiceApplicationService>();
@@ -29,103 +40,146 @@ builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<CategoryService>();
 builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<MongoDbContext>();
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+builder.Services.AddScoped<ShopCartService>();
+builder.Services.AddHostedService<ShopCartIndexInitializer>();
+
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<ITechnocareSiteClient, TechnocareSiteClient>((serviceProvider, client) =>
+{
+    var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<TechnocareSiteOptions>>().Value;
+    client.BaseAddress = new Uri(settings.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 5, 60));
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnocareAppBackend/1.0");
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+});
+
+var jwt = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
+    ?? throw new InvalidOperationException("JwtSettings are missing.");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.SaveToken = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Secret)),
+            ValidateIssuer = true,
+            ValidIssuer = jwt.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwt.Audience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+        };
     });
+builder.Services.AddAuthorization();
+
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+});
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddResponseCaching();
+builder.Services.AddHealthChecks()
+    .AddCheck<TechnocareSiteHealthCheck>("technocare-site")
+    .AddCheck<MongoDbHealthCheck>("mongodb");
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+});
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Technocare API", Version = "v1" });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Technocare API", Version = "v1" });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Please insert JWT with Bearer into field",
+        Description = "JWT bearer token",
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
     });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        new OpenApiSecurityScheme
+        [new OpenApiSecurityScheme
         {
-            Reference = new OpenApiReference
-            {
-                Type = ReferenceType.SecurityScheme,
-                Id = "Bearer"
-            }
-        },
-        new string[] { }
-    }
+            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" },
+        }] = Array.Empty<string>(),
     });
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll",
-        builder =>
-        {
-            builder.AllowAnyOrigin() // Allow requests from any origin
-                   .AllowAnyMethod() // Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
-                   .AllowAnyHeader(); // Allow all headers
-        });
-});
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["https://technocare.az", "https://www.technocare.az"];
+builder.Services.AddCors(options => options.AddPolicy("Technocare", policy =>
+    policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
-if (!BsonClassMap.IsClassMapRegistered(typeof(ServiceApplication)))
-{
-    BsonClassMap.RegisterClassMap<ServiceApplication>(cm =>
-    {
-        cm.AutoMap();
-        cm.MapIdProperty(a => a.Id).SetElementName("_id");
-        cm.MapProperty(a => a.ApplicantName).SetElementName("applicantName");
-        cm.MapProperty(a => a.ApplicantEmail).SetElementName("applicantEmail");
-        cm.MapProperty(a => a.ApplicantPhone).SetElementName("applicantPhone");
-        cm.MapProperty(a => a.AppliedFor).SetElementName("appliedFor");
-        cm.MapProperty(a => a.AppliedSubService).SetElementName("appliedSubService"); // Add this
-        cm.MapProperty(a => a.Message).SetElementName("message");
-        cm.MapProperty(a => a.ApplicationDate).SetElementName("applicationDate");
-        cm.MapProperty(a => a.Status).SetElementName("status");
-    });
-}
-if (!BsonClassMap.IsClassMapRegistered(typeof(EducationApplication)))
-{
-    BsonClassMap.RegisterClassMap<EducationApplication>(cm =>
-    {
-        cm.AutoMap();
-        cm.MapIdProperty(a => a.Id).SetElementName("_id");
-        cm.MapProperty(a => a.ApplicantName).SetElementName("applicantName");
-        cm.MapProperty(a => a.ApplicantEmail).SetElementName("applicantEmail");
-        cm.MapProperty(a => a.ApplicantPhone).SetElementName("applicantPhone");
-        cm.MapProperty(a => a.AppliedFor).SetElementName("appliedFor");
-        cm.MapProperty(a => a.Message).SetElementName("message");
-        cm.MapProperty(a => a.ApplicationDate).SetElementName("applicationDate");
-        cm.MapProperty(a => a.Status).SetElementName("status");
-    });
-}
-
+RegisterMongoMaps();
 
 var app = builder.Build();
-app.Use(async (context, next) =>
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    Console.WriteLine($"Request: {context.Request.Path}");
-    await next();
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
 });
-//if (app.Environment.IsDevelopment())
-//{
+app.UseExceptionHandler();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+else
+{
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Technocare API V1");
-    });
-//}
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Technocare API V1"));
+}
 app.UseHttpsRedirection();
-app.UseStaticFiles(); // Serve static files from wwwroot
+app.UseStaticFiles();
 app.UseRouting();
-app.UseCors("AllowAll"); // Use the CORS policy defined above
-app.UseAuthorization(); // Enable authorization middleware
+app.UseRateLimiter();
+app.UseCors("Technocare");
+app.UseResponseCaching();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
-app.MapFallbackToFile("index.html"); // Serve index.html for unknown routes
+app.MapHealthChecks("/health");
+app.MapFallbackToFile("index.html");
 app.Run();
+
+static void RegisterMongoMaps()
+{
+    if (!BsonClassMap.IsClassMapRegistered(typeof(ServiceApplication)))
+    {
+        BsonClassMap.RegisterClassMap<ServiceApplication>(map =>
+        {
+            map.AutoMap();
+            map.MapIdProperty(item => item.Id).SetElementName("_id");
+        });
+    }
+
+    if (!BsonClassMap.IsClassMapRegistered(typeof(EducationApplication)))
+    {
+        BsonClassMap.RegisterClassMap<EducationApplication>(map =>
+        {
+            map.AutoMap();
+            map.MapIdProperty(item => item.Id).SetElementName("_id");
+        });
+    }
+}
+
+public partial class Program;

@@ -1,12 +1,16 @@
 ﻿using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using MongoDB.Bson;
+using System.Security.Claims;
 
 namespace backend.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/internal/legacy/carts")]
+[Authorize(Roles = "Admin")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class CartsController : ControllerBase
 {
     private readonly CartService _cartService;
@@ -18,8 +22,9 @@ public class CartsController : ControllerBase
         _userService = userService;
     }
     [HttpGet]
-    public async Task<IActionResult> GetCart([FromQuery] string userId)
+    public async Task<IActionResult> GetCart()
     {
+        var userId = CurrentUserId();
         try
         {
             var user = await _userService.GetByIdAsync(userId);
@@ -32,20 +37,19 @@ public class CartsController : ControllerBase
 
             return Ok(cart);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new
             {
-                message = "GetCart failed",
-                error = ex.Message,
-                stack = ex.StackTrace
+                message = "Cart could not be loaded."
             });
         }
     }
 
     [HttpPost]
-    public async Task<IActionResult> AddItem([FromQuery] string userId, [FromBody] AddToCartRequest request)
+    public async Task<IActionResult> AddItem([FromBody] AddToCartRequest request)
     {
+        var userId = CurrentUserId();
         try
         {
             var user = await _userService.GetByIdAsync(userId);
@@ -61,14 +65,11 @@ public class CartsController : ControllerBase
             var updated = await _cartService.AddOrUpdateItemAsync(user.CartId, request);
             return Ok(updated);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // TEMP debug: Flutter konsolda konkret error görünsün deyə
             return StatusCode(500, new
             {
-                message = "AddItem failed",
-                error = ex.Message,
-                stack = ex.StackTrace
+                message = "Cart could not be updated."
             });
         }
     }
@@ -79,9 +80,9 @@ public class CartsController : ControllerBase
     [HttpPut("{productId}")]
     public async Task<IActionResult> UpdateItem(
         string productId,
-        [FromQuery] string userId,
         [FromBody] UpdateCartItemRequest request)
     {
+        var userId = CurrentUserId();
         var user = await _userService.GetByIdAsync(userId);
         if (user == null || string.IsNullOrEmpty(user.CartId))
             return NotFound(new { message = "User or cart not found." });
@@ -95,8 +96,9 @@ public class CartsController : ControllerBase
     }
 
     [HttpDelete("{productId}")]
-    public async Task<IActionResult> RemoveItem(string productId, [FromQuery] string userId)
+    public async Task<IActionResult> RemoveItem(string productId)
     {
+        var userId = CurrentUserId();
         var user = await _userService.GetByIdAsync(userId);
         if (user == null || string.IsNullOrEmpty(user.CartId))
             return NotFound(new { message = "User or cart not found." });
@@ -108,8 +110,9 @@ public class CartsController : ControllerBase
     }
 
     [HttpDelete("clear")]
-    public async Task<IActionResult> ClearCart([FromQuery] string userId)
+    public async Task<IActionResult> ClearCart()
     {
+        var userId = CurrentUserId();
         var user = await _userService.GetByIdAsync(userId);
         if (user == null || string.IsNullOrEmpty(user.CartId))
             return NotFound(new { message = "User or cart not found." });
@@ -120,4 +123,7 @@ public class CartsController : ControllerBase
 
         return NoContent();
     }
+
+    private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? throw new UnauthorizedAccessException("Authenticated user identifier is missing.");
 }

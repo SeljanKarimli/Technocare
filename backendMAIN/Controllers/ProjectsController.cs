@@ -8,7 +8,9 @@ using backend.Models;
 using backend.Services;
 namespace backend.Controllers;
 [ApiController]
-[Route("api/[controller]")] // Base route: /api/projects
+[Route("api/internal/legacy/projects")]
+[Authorize(Roles = "Admin")]
+[ApiExplorerSettings(IgnoreApi = true)]
 public class ProjectsController : ControllerBase
 {
     private readonly ProjectService _service;
@@ -19,11 +21,13 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<List<Project>>> GetAll()
         => Ok(await _service.GetAllAsync());
 
     // GET: /api/projects/{id}
     [HttpGet("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<Project>> GetById(string id)
     {
         var project = await _service.GetByIdAsync(id);
@@ -33,6 +37,7 @@ public class ProjectsController : ControllerBase
 
     // POST: /api/projects
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<Project>> Create([FromBody] ProjectCreateRequest req)
     {
         var created = await _service.CreateAsync(req);
@@ -41,6 +46,7 @@ public class ProjectsController : ControllerBase
 
     // PUT: /api/projects/{id}
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(string id, [FromBody] ProjectUpdateRequest req)
     {
         var ok = await _service.UpdateAsync(id, req);
@@ -50,6 +56,7 @@ public class ProjectsController : ControllerBase
 
     // DELETE: /api/projects/{id}
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(string id)
     {
         var ok = await _service.DeleteAsync(id);

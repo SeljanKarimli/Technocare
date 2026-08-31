@@ -25,7 +25,7 @@ public class Product
 
     [BsonElement("categoryId")]
     [BsonRepresentation(BsonType.ObjectId)]
-    public string CategoryId { get; set; }
+    public string CategoryId { get; set; } = null!;
 
     [BsonElement("stock")]
     public int Stock { get; set; }

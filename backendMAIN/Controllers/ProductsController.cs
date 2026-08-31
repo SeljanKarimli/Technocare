@@ -6,7 +6,9 @@ using backend.Services;
 namespace backend.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")] // /api/products
+    [Route("api/internal/legacy/products")]
+    [Authorize(Roles = "Admin")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public class ProductsController : ControllerBase
     {
         private readonly ProductService _productService;
@@ -17,7 +19,7 @@ namespace backend.Controllers
         }
 
         [HttpGet]
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<List<Product>>> Get(
             [FromQuery] string? categoryId = null,
             [FromQuery] string? search = null,
@@ -34,7 +36,7 @@ namespace backend.Controllers
         }
 
         [HttpGet("{id:length(24)}")]
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Product>> GetById(string id)
         {
             var product = await _productService.GetByIdAsync(id);
@@ -43,6 +45,7 @@ namespace backend.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] ProductCreateRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -60,6 +63,7 @@ namespace backend.Controllers
         }
 
         [HttpPut("{id:length(24)}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(string id, [FromBody] ProductUpdateRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -79,6 +83,7 @@ namespace backend.Controllers
         }
 
         [HttpDelete("{id:length(24)}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(string id)
         {
             var existing = await _productService.GetByIdAsync(id);

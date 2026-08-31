@@ -109,15 +109,12 @@
         async function testBackend() {
             try {
                 // Try to determine the API base URL
-                const host = window.location.hostname.toLowerCase();
-                const API_BASE = (host === 'localhost' || host === '127.0.0.1')
-                    ? window.location.origin
-                    : 'https://technocareapi.runasp.net';
+                const API_BASE = window.location.origin;
 
                 addResult('backend-tests', `🔍 Testing backend connection to: ${API_BASE}`, 'info');
 
                 // Test a simple endpoint
-                const response = await fetch(`${API_BASE}/api/categories`, {
+                const response = await fetch(`${API_BASE}/api/internal/legacy/categories`, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json'

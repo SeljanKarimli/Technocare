@@ -40,7 +40,7 @@ public class CreateOrderRequest
     public string Status { get; set; } = "Pending"; // e.g., "Pending", "Processing", "Shipped", "Delivered", "Cancelled"
 
     [JsonPropertyName("cartId")]
-    public string CartId { get; set; }
+    public string CartId { get; set; } = null!;
 }
 
 // DTO for updating order status (for admin)

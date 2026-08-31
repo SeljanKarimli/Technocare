@@ -1,8 +1,6 @@
 ﻿// Auto base URL: local = current origin, prod = runasp
 function getApiBase() {
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return window.location.origin;
-    return "https://technocareapi.runasp.net";
+    return window.location.origin;
 }
 const API_BASE = getApiBase();
 
@@ -118,7 +116,7 @@ function loadSection(sectionKey) {
 // ==========================
 let categoriesCache = []; // [{id,name}]
 async function refreshCategoriesCache() {
-    const res = await axios.get(`${API_BASE}/api/categories`, { headers: authHeaders() });
+    const res = await axios.get(`${API_BASE}/api/internal/legacy/categories`, { headers: authHeaders() });
     const cats = res.data || [];
     categoriesCache = cats.map(c => ({
         id: c.id ?? c.Id,
@@ -162,7 +160,7 @@ async function loadProducts() {
         }
 
         // NOTE: controller route is /api/products (lowercase). Using lowercase avoids issues.
-        const res = await axios.get(`${API_BASE}/api/products?page=1&pageSize=200`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/products?page=1&pageSize=200`, { headers: authHeaders() });
         const products = res.data || [];
 
         if (!products.length) {
@@ -235,7 +233,7 @@ async function openAddProductModal() {
 
 async function openEditProductModal(id) {
     try {
-        const res = await axios.get(`${API_BASE}/api/products/${id}`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/products/${id}`, { headers: authHeaders() });
         const p = res.data || {};
 
         document.getElementById("product-id").value = p.id ?? p.Id ?? "";
@@ -280,12 +278,12 @@ async function saveProduct() {
 
     try {
         if (id) {
-            await axios.put(`${API_BASE}/api/products/${id}`, payload, {
+            await axios.put(`${API_BASE}/api/internal/legacy/products/${id}`, payload, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Product updated.", "success");
         } else {
-            await axios.post(`${API_BASE}/api/products`, payload, {
+            await axios.post(`${API_BASE}/api/internal/legacy/products`, payload, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Product created.", "success");
@@ -308,7 +306,7 @@ function confirmDeleteProduct(id) {
 async function deleteProduct() {
     if (!currentProductId) return;
     try {
-        await axios.delete(`${API_BASE}/api/products/${currentProductId}`, { headers: authHeaders() });
+        await axios.delete(`${API_BASE}/api/internal/legacy/products/${currentProductId}`, { headers: authHeaders() });
         showMessage("Product deleted.", "success");
         confirmModal?.hide();
         loadProducts();
@@ -329,7 +327,7 @@ async function loadCategories() {
     if (!categoriesTableBody) return;
     categoriesTableBody.innerHTML = '<tr><td colspan="2" class="text-center">Loading...</td></tr>';
     try {
-        const res = await axios.get(`${API_BASE}/api/categories`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/categories`, { headers: authHeaders() });
         const cats = res.data || [];
         categoriesCache = cats.map(c => ({ id: c.id ?? c.Id, name: c.name ?? c.Name }));
 
@@ -380,12 +378,12 @@ async function saveCategory() {
 
     try {
         if (id) {
-            await axios.put(`${API_BASE}/api/categories/${id}`, { id, name }, {
+            await axios.put(`${API_BASE}/api/internal/legacy/categories/${id}`, { id, name }, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Category updated.", "success");
         } else {
-            await axios.post(`${API_BASE}/api/categories`, { name }, {
+            await axios.post(`${API_BASE}/api/internal/legacy/categories`, { name }, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Category created.", "success");
@@ -402,7 +400,7 @@ async function saveCategory() {
 async function deleteCategory(id) {
     if (!confirm("Delete this category?")) return;
     try {
-        await axios.delete(`${API_BASE}/api/categories/${id}`, { headers: authHeaders() });
+        await axios.delete(`${API_BASE}/api/internal/legacy/categories/${id}`, { headers: authHeaders() });
         showMessage("Category deleted.", "success");
         loadCategories();
         await refreshCategoriesCache();
@@ -466,7 +464,7 @@ async function loadOrders() {
     ordersTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
 
     try {
-        const res = await axios.get(`${API_BASE}/api/orders`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/orders`, { headers: authHeaders() });
         allOrders = res.data || [];
 
         // Get all users for customer details
@@ -614,7 +612,7 @@ async function changeOrderStatus(id) {
     if (!status) return;
     try {
         await axios.put(
-            `${API_BASE}/api/orders/${id}/status`,
+            `${API_BASE}/api/internal/legacy/orders/${id}/status`,
             { status },
             { headers: { ...authHeaders(), "Content-Type": "application/json" } }
         );
@@ -628,7 +626,7 @@ async function changeOrderStatus(id) {
 async function deleteOrder(id) {
     if (!confirm("Delete this order?")) return;
     try {
-        await axios.delete(`${API_BASE}/api/orders/${id}`, { headers: authHeaders() });
+        await axios.delete(`${API_BASE}/api/internal/legacy/orders/${id}`, { headers: authHeaders() });
         showMessage("Order deleted.", "success");
         loadOrders();
     } catch (err) {
@@ -789,7 +787,7 @@ async function loadUsers() {
 
         // Get orders and applications for stats
         const [ordersRes, eduRes, srvRes] = await Promise.all([
-            axios.get(`${API_BASE}/api/orders`, { headers: authHeaders() }),
+            axios.get(`${API_BASE}/api/internal/legacy/orders`, { headers: authHeaders() }),
             axios.get(`${API_BASE}/api/educationapplications`, { headers: authHeaders() }),
             axios.get(`${API_BASE}/api/serviceapplications`, { headers: authHeaders() }),
         ]);
@@ -930,7 +928,7 @@ async function loadProjects() {
     projectsTableBody.innerHTML = '<tr><td colspan="7" class="text-center">Loading...</td></tr>';
 
     try {
-        const res = await axios.get(`${API_BASE}/api/projects`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/projects`, { headers: authHeaders() });
         const projects = res.data || [];
 
         if (!projects.length) {
@@ -982,7 +980,7 @@ function openAddProjectModal() {
 
 async function openEditProjectModal(id) {
     try {
-        const res = await axios.get(`${API_BASE}/api/projects/${id}`, { headers: authHeaders() });
+        const res = await axios.get(`${API_BASE}/api/internal/legacy/projects/${id}`, { headers: authHeaders() });
         const p = res.data || {};
 
         document.getElementById("project-id").value = p.id ?? p.Id ?? "";
@@ -1012,12 +1010,12 @@ async function saveProject() {
 
     try {
         if (id) {
-            await axios.put(`${API_BASE}/api/projects/${id}`, payload, {
+            await axios.put(`${API_BASE}/api/internal/legacy/projects/${id}`, payload, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Project updated.", "success");
         } else {
-            await axios.post(`${API_BASE}/api/projects`, payload, {
+            await axios.post(`${API_BASE}/api/internal/legacy/projects`, payload, {
                 headers: { ...authHeaders(), "Content-Type": "application/json" },
             });
             showMessage("Project created.", "success");
@@ -1041,7 +1039,7 @@ function confirmDeleteProject(id) {
 async function deleteProject() {
     if (!currentProjectId) return;
     try {
-        await axios.delete(`${API_BASE}/api/projects/${currentProjectId}`, { headers: authHeaders() });
+        await axios.delete(`${API_BASE}/api/internal/legacy/projects/${currentProjectId}`, { headers: authHeaders() });
         showMessage("Project deleted.", "success");
         confirmModal?.hide();
         loadProjects();

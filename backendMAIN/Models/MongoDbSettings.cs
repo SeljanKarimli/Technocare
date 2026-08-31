@@ -9,6 +9,7 @@ namespace backend.Models
         public string ProductsCollectionName { get; set; } = null!;
         public string CategoriesCollectionName { get; set; } = null!;
         public string CartsCollectionName { get; set; } = null!;
+        public string ShopCartsCollectionName { get; set; } = "shop_carts";
         public string OrdersCollectionName { get; set; } = null!;
         public string ServiceApplicationsCollectionName { get; set; } = null!;
         public string EducationApplicationsCollectionName { get; set; } = null!;
