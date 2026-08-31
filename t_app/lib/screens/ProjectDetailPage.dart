@@ -1,155 +1,93 @@
-﻿import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../navigation.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+
+import '../models/site_project.dart';
+import 'ApplicationFormSPage.dart';
 
 class ProjectDetailPage extends StatelessWidget {
-  final Project project;
+  final SiteProject project;
 
-  const ProjectDetailPage({
-    super.key,
-    required this.project,
-  });
-
-  /// Helper to bypass CORS using the working wsrv.nl proxy
-  String _getSafeImageUrl(String url) {
-    String trimmedUrl = url.trim();
-    if (trimmedUrl.isEmpty) {
-      return 'https://via.placeholder.com/600x400?text=No+Image';
-    }
-    if (trimmedUrl.startsWith('http')) {
-      return "https://wsrv.nl/?url=${Uri.encodeComponent(trimmedUrl)}&default=error";
-    }
-    return trimmedUrl;
-  }
+  const ProjectDetailPage({super.key, required this.project});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(project.name),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (project.imageUrl.isNotEmpty)
-              Image.network(
-                _getSafeImageUrl(project.imageUrl),
-                width: double.infinity,
-                height: 250,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(project.name)),
+        body: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (project.imageUrl.isNotEmpty)
+                CachedNetworkImage(
+                  imageUrl: project.imageUrl,
+                  width: double.infinity,
+                  height: 250,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => const SizedBox(height: 250, child: Center(child: CircularProgressIndicator())),
+                  errorWidget: (_, __, ___) => const SizedBox(
                     height: 250,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.broken_image, size: 64, color: Colors.grey),
-                    ),
-                  );
-                },
-              ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.name,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
+                    child: ColoredBox(
+                      color: Color(0xFFEAF0EB),
+                      child: Icon(Icons.factory_outlined, size: 64, color: Color(0xFF3E8F2E)),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Short Description',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    project.description,
-                    style: const TextStyle(fontSize: 15, height: 1.4),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Details',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    project.content,
-                    style: const TextStyle(fontSize: 15, height: 1.45),
-                  ),
-                  const SizedBox(height: 20),
-                  if (project.images != null && project.images!.isNotEmpty) ...[
-                    const Text(
-                      'Gallery',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 120,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: project.images!.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final url = project.images![index];
-                          return ClipRRect(
+                ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(project.name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+                    if (project.description.isNotEmpty) ...[
+                      const SizedBox(height: 18),
+                      const Text('Qısa məlumat', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      Text(project.description, style: const TextStyle(fontSize: 15, height: 1.45)),
+                    ],
+                    if (project.content.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      const Text('Ətraflı məlumat', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      Text(project.content, style: const TextStyle(fontSize: 15, height: 1.5)),
+                    ],
+                    if (project.images.skip(1).isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const Text('Qalereya', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 120,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: project.images.skip(1).length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          itemBuilder: (_, index) => ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              _getSafeImageUrl(url),
+                            child: CachedNetworkImage(
+                              imageUrl: project.images.skip(1).elementAt(index),
                               width: 160,
                               height: 120,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 160,
-                                  height: 120,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.image_not_supported),
-                                );
-                              },
+                              errorWidget: (_, __, ___) => const SizedBox(width: 160, child: ColoredBox(color: Color(0xFFEAF0EB), child: Icon(Icons.image_not_supported_outlined))),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                  ],
-                  SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: () {
-                            // Direct navigation to ApplicationFormSPage
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ApplicationFormSPage(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Siz də müraciət edin',
-                            style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ),
                       ),
-                ],
+                    ],
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ApplicationFormSPage()),
+                        ),
+                        child: const Text('Siz də müraciət edin'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
 }

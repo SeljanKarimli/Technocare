@@ -1,8 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// ApiService lives in main.dart in your project
 import '../navigation.dart';
+import '../repositories/auth_repository.dart';
 
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -33,13 +33,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
 
     try {
-      final apiService = Provider.of<ApiService>(context, listen: false);
+      final repository = context.read<AuthRepository>();
 
       final email = widget.email.trim();
       final token = _codeController.text.trim();
       final newPassword = _newPasswordController.text;
 
-      final response = await apiService.resetPassword(email, token, newPassword);
+      final response = await repository.resetPassword(email, token, newPassword);
 
       // Backend success pattern: { "message": "..." }
       if (response['message'] != null) {

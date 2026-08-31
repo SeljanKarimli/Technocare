@@ -1,123 +1,42 @@
-﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../navigation.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../core/api_client.dart';
+import '../models/site_project.dart';
 import 'ProjectDetailPage.dart';
 
-// ---------------------------------------------------------------------------
-// Smart image widget: tries proxy → raw URL → placeholder, in order
-// ---------------------------------------------------------------------------
-class _SmartNetworkImage extends StatefulWidget {
-  final String rawUrl;
-  const _SmartNetworkImage({required this.rawUrl});
-
-  @override
-  State<_SmartNetworkImage> createState() => _SmartNetworkImageState();
-}
-
-class _SmartNetworkImageState extends State<_SmartNetworkImage> {
-  // 0 = proxy, 1 = raw, 2 = give up
-  int _attempt = 0;
-
-  String get _currentUrl {
-    final trimmed = widget.rawUrl.trim();
-    if (trimmed.isEmpty) return '';
-    switch (_attempt) {
-      case 0:
-        return "https://wsrv.nl/?url=${Uri.encodeComponent(trimmed)}&default=error";
-      case 1:
-        return trimmed;
-      default:
-        return '';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final url = _currentUrl;
-
-    // Replace the broken_image icon container (attempt >= 2) with:
-if (url.isEmpty || _attempt >= 2) {
-  return Image.asset(
-    '../assets/images/project_placeholder.jpg',
-    width: double.infinity,
-    fit: BoxFit.cover,
-  );
-}
-
-    return Image.network(
-      url,
-      width: double.infinity,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: Colors.grey.shade200,
-          child: Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
-                  : null,
-              color: Colors.green.shade600,
-              strokeWidth: 2,
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted) setState(() => _attempt++);
-  });
-  // On final attempt, show asset right away
-  if (_attempt >= 1) {
-    return Image.asset(
-      '../assets/images/project_placeholder.jpg',
-      width: double.infinity,
-      fit: BoxFit.cover,
-    );
-  }
-  return Container(
-    color: Colors.grey.shade200,
-    child: Center(
-      child: CircularProgressIndicator(
-        color: Colors.green.shade300,
-        strokeWidth: 2,
-      ),
-    ),
-  );
-},
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// ProjectsPage
-// ---------------------------------------------------------------------------
 class ProjectsPage extends StatefulWidget {
   const ProjectsPage({super.key});
 
   @override
-  _ProjectsPageState createState() => _ProjectsPageState();
+  State<ProjectsPage> createState() => _ProjectsPageState();
 }
 
 class _ProjectsPageState extends State<ProjectsPage> {
-  List<Project> projects = [];
-  bool isLoading = true;
-  String errorMessage = '';
-  int page = 1;
-  int pageSize = 10;
-  bool hasMore = true;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  List<Project> _displayedProjects = [];
+  final List<SiteProject> _projects = [];
+  int _page = 1;
+  bool _loading = false;
+  bool _hasMore = true;
+  String? _error;
+
+  List<SiteProject> get _visibleProjects {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _projects;
+    return _projects
+        .where((project) =>
+            project.name.toLowerCase().contains(query) ||
+            project.description.toLowerCase().contains(query))
+        .toList();
+  }
 
   @override
   void initState() {
     super.initState();
-    _fetchProjects();
-    _scrollController.addListener(_scrollListener);
-    _searchController.addListener(_applyFilters);
+    _scrollController.addListener(_onScroll);
+    _load();
   }
 
   @override
@@ -127,242 +46,204 @@ class _ProjectsPageState extends State<ProjectsPage> {
     super.dispose();
   }
 
-  void _applyFilters() {
-    setState(() {
-      _displayedProjects = projects.where((project) {
-        return _searchController.text.isEmpty ||
-            project.name
-                .toLowerCase()
-                .contains(_searchController.text.toLowerCase()) ||
-            project.description
-                .toLowerCase()
-                .contains(_searchController.text.toLowerCase());
-      }).toList();
-    });
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 300) _load();
   }
 
-  void _scrollListener() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
-      if (hasMore && !isLoading) {
-        _fetchProjects();
-      }
+  Future<void> _load({bool refresh = false}) async {
+    if (_loading || (!refresh && !_hasMore)) return;
+    if (refresh) {
+      _page = 1;
+      _hasMore = true;
+      _projects.clear();
     }
-  }
-
-  Future<void> _fetchProjects() async {
-    if (!hasMore) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final response = await http.get(
-        Uri.parse(
-            "http://technocareapi.runasp.net/api/Projects?page=$page&pageSize=$pageSize"),
+      final response = Map<String, dynamic>.from(
+        await context.read<ApiClient>().get(
+          'v1/content/projects',
+          query: {'page': _page, 'pageSize': 12},
+        ) as Map,
       );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          if (data.length < pageSize) hasMore = false;
-
-          final existingIds = projects.map((p) => p.id).toSet();
-          final newProjects = data
-              .map((json) => Project.fromJson(json))
-              .where((p) => !existingIds.contains(p.id))
-              .toList();
-
-          projects.addAll(newProjects);
-          isLoading = false;
-          if (newProjects.isNotEmpty) {
-            page++;
-          } else if (data.isNotEmpty) {
-            hasMore = false;
-          }
-          _applyFilters();
-        });
-      } else {
-        setState(() {
-          errorMessage = "Xəta: ${response.statusCode}";
-          isLoading = false;
-        });
-      }
-    } catch (e) {
+      final items = (response['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => SiteProject.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      if (!mounted) return;
       setState(() {
-        errorMessage = "Bağlantı xətası: $e";
-        isLoading = false;
+        final known = _projects.map((project) => project.id).toSet();
+        _projects.addAll(items.where((project) => known.add(project.id)));
+        final totalPages = (response['totalPages'] as num?)?.toInt() ?? _page;
+        _hasMore = _page < totalPages;
+        if (items.isNotEmpty) _page++;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Layihələri yükləmək mümkün olmadı.';
+        _loading = false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading && projects.isEmpty) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator(color: Colors.green)),
-      );
-    }
-
+    final items = _visibleProjects;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAF8),
       body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {
-            projects.clear();
-            _displayedProjects.clear();
-            page = 1;
-            hasMore = true;
-            isLoading = true;
-            errorMessage = '';
-          });
-          await _fetchProjects();
-        },
-        child: SingleChildScrollView(
+        onRefresh: () => _load(refresh: true),
+        child: CustomScrollView(
           controller: _scrollController,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Search bar — same style as HomePage
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(16.0),
-                    border: Border.all(color: Colors.grey.shade200),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              sliver: SliverToBoxAdapter(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    hintText: 'Layihə axtarın',
+                    prefixIcon: Icon(Icons.search_rounded),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Layihə axtarın...',
-                      border: InputBorder.none,
-                      icon: Icon(Icons.search, color: Colors.grey.shade600),
-                      hintStyle: TextStyle(color: Colors.grey.shade500),
+                ),
+              ),
+            ),
+            const SliverPadding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 12),
+              sliver: SliverToBoxAdapter(
+                child: Text('Layihələr', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              ),
+            ),
+            if (_error != null && _projects.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _MessageState(
+                  icon: Icons.cloud_off_rounded,
+                  message: _error!,
+                  action: () => _load(refresh: true),
+                ),
+              )
+            else if (!_loading && items.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: _MessageState(icon: Icons.factory_outlined, message: 'Layihə tapılmadı.'),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: .72,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _ProjectCard(project: items[index]),
+                    childCount: items.length,
+                  ),
+                ),
+              ),
+            if (_loading)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectCard extends StatelessWidget {
+  final SiteProject project;
+
+  const _ProjectCard({required this.project});
+
+  @override
+  Widget build(BuildContext context) => Card(
+        clipBehavior: Clip.antiAlias,
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ProjectDetailPage(project: project)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: SizedBox.expand(
+                  child: CachedNetworkImage(
+                    imageUrl: project.imageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const ColoredBox(
+                      color: Color(0xFFEAF0EB),
+                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                    errorWidget: (_, __, ___) => const ColoredBox(
+                      color: Color(0xFFEAF0EB),
+                      child: Icon(Icons.factory_outlined, size: 44, color: Color(0xFF3E8F2E)),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24.0),
-
-                // Section title — same style as HomePage
-                const Text(
-                  'Layihələr',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(project.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    if (project.description.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(project.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 16.0),
+              ),
+            ],
+          ),
+        ),
+      );
+}
 
-                if (errorMessage.isNotEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(errorMessage,
-                          style: const TextStyle(color: Colors.red)),
-                    ),
-                  )
-                else if (_displayedProjects.isEmpty && !isLoading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Text('Layihə tapılmadı.'),
-                    ),
-                  )
-                else
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount:
-                        _displayedProjects.length + (hasMore ? 1 : 0),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount:
-                          MediaQuery.of(context).size.width > 600 ? 3 : 2,
-                      crossAxisSpacing: 16.0,
-                      mainAxisSpacing: 16.0,
-                      childAspectRatio: 0.75,
-                    ),
-                    itemBuilder: (context, index) {
-                      if (index == _displayedProjects.length) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: CircularProgressIndicator(
-                                color: Colors.green),
-                          ),
-                        );
-                      }
-                      return _buildProjectCard(_displayedProjects[index]);
-                    },
-                  ),
+class _MessageState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final VoidCallback? action;
+
+  const _MessageState({required this.icon, required this.message, this.action});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 56, color: const Color(0xFF3E8F2E)),
+              const SizedBox(height: 12),
+              Text(message, textAlign: TextAlign.center),
+              if (action != null) ...[
+                const SizedBox(height: 16),
+                FilledButton(onPressed: action, child: const Text('Yenidən cəhd et')),
               ],
-            ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildProjectCard(Project project) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ProjectDetailPage(project: project),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16.0),
-                  topRight: Radius.circular(16.0),
-                ),
-                // Smart widget: proxy → raw → broken icon
-                child: _SmartNetworkImage(rawUrl: project.imageUrl),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    project.description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      );
 }

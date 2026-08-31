@@ -1,11 +1,4 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // For making HTTP requests
-import 'dart:convert'; // For JSON encoding/decoding
-import 'package:provider/provider.dart'; // For state management
-import 'package:shared_preferences/shared_preferences.dart'; // For storing JWT token
-import 'dart:io'; // Import for HttpClient
-
-import '../navigation.dart'; 
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -59,11 +52,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       setState(() {
         _messages.add({'role': 'ai', 'text': aiResponseText});
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _messages.add({'role': 'ai', 'text': 'Error: Could not get a response from AI.'});
       });
-      print('Error calling Gemini API: $e');
     } finally {
       setState(() {
         _isGenerating = false;

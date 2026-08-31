@@ -1,10 +1,8 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-// Ensure this path is correct for your project structure
+import '../core/api_client.dart';
+import '../providers/auth_provider.dart';
 import '../navigation.dart'; 
 
 class ApplicationFormSPage extends StatefulWidget {
@@ -95,14 +93,6 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
     setState(() => _isLoading = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwtToken');
-
-      if (token == null || token.isEmpty) {
-        _showSnack('Token tapılmadı. Yenidən login olun.');
-        return false;
-      }
-
       final applicationData = {
         'Name': _nameController.text.trim(),
         'Email': _emailController.text.trim(),
@@ -112,24 +102,17 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
         'Message': _messageController.text.trim(),
       };
 
-      final response = await http.post(
-        Uri.parse('http://technocareapi.runasp.net/api/ServiceApplications'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode(applicationData),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _showSnack('Müraciət göndərildi ✅');
-        return true;
-      } else {
-        _showSnack('Xəta: ${response.statusCode}');
-        return false;
-      }
-    } catch (e) {
-      _showSnack('Şəbəkə xətası baş verdi');
+      await context.read<ApiClient>().post(
+            'ServiceApplications',
+            body: applicationData,
+          );
+      _showSnack('Müraciət göndərildi');
+      return true;
+    } on ApiException catch (error) {
+      _showSnack(error.message);
+      return false;
+    } catch (_) {
+      _showSnack('Müraciəti göndərmək mümkün olmadı.');
       return false;
     } finally {
       if (mounted) setState(() => _isLoading = false);

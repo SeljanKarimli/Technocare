@@ -1,32 +1,42 @@
-﻿name: Technocare
+name: technocare
 description: "Sizin mühəndislik həlliniz"
 publish_to: 'none'
-version: "2.0.4+14"
+version: "2.1.0+15"
+
 environment:
   sdk: ^3.8.1
+
 dependencies:
+  app_links: ^6.4.1
   flutter:
     sdk: flutter
-  http: ^1.1.0  # For API calls
-  flutter_dotenv: ^5.1.0  # Optional (for environment variables)
+  cached_network_image: ^3.4.1
   cupertino_icons: ^1.0.8
-  google_nav_bar: ^5.0.7
-  url_launcher: ^6.2.5
-  provider: ^6.1.2 # For state management
-  shared_preferences: ^2.2.3
-  firebase_messaging: ^16.1.0
   firebase_core: ^4.3.0
+  firebase_messaging: ^16.1.0
+  flutter_dotenv: ^5.1.0
+  flutter_secure_storage: ^9.2.4
+  google_nav_bar: ^5.0.7
+  http: ^1.1.0
+  intl: ^0.20.2
+  provider: ^6.1.2
+  shared_preferences: ^2.2.3
+  url_launcher: ^6.2.5
+  webview_flutter: ^4.10.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
   change_app_package_name: ^1.5.0
+
 flutter:
   uses-material-design: true
   assets:
     - assets/images/technocare.png
     - assets/icons/app_icon.png
+
 flutter_launcher_icons:
   android: true
   ios: true

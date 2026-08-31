@@ -1,8 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// ApiService lives in main.dart in your project
 import '../navigation.dart';
+import '../repositories/auth_repository.dart';
 
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -28,10 +28,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      // You can call either ApiService directly or go through AuthProvider.
-      // Here we call ApiService directly.
-      final apiService = Provider.of<ApiService>(context, listen: false);
-      final resp = await apiService.sendPasswordResetEmail(_emailController.text.trim());
+      final repository = context.read<AuthRepository>();
+      final resp = await repository.sendPasswordResetEmail(_emailController.text.trim());
 
       // Backend returns { "message": "..." } on success
       if (resp['message'] != null) {

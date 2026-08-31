@@ -1,11 +1,8 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // For making HTTP requests
-import 'dart:convert'; // For JSON encoding/decoding
 import 'package:provider/provider.dart'; // For state management
-import 'package:shared_preferences/shared_preferences.dart'; // For storing JWT token
-import 'dart:io'; // Import for HttpClient
 
-import '../navigation.dart';
+import '../core/api_client.dart';
+import '../providers/auth_provider.dart';
 
 // New Application Form Page
 class ApplicationFormEPage extends StatefulWidget {
@@ -20,7 +17,6 @@ class ApplicationFormEPage extends StatefulWidget {
 class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
   final _formKey = GlobalKey<FormState>();
   String? _selectedField;
-  String? _selectedSubService; // Added state for the sub-service dropdown
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -71,63 +67,28 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
         'Message': _messageController.text,
       };
 
-      // Print the data to the console for debugging purposes
-      print('Submitting form with data: $applicationData');
-
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('jwtToken');
-        if (token == null) {
-          throw Exception('Token not found. User not authenticated.');
-        }
-
-        final response = await http.post(
-          Uri.parse('http://technocareapi.runasp.net/api/EducationApplications'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: json.encode(applicationData),
-        );
-
-        if (response.statusCode == 200) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Müraciətiniz uğurla göndərildi!')),
-          );
-          Navigator.pop(context);
-        } else {
-          String errorMessage = 'Bilinməyən xəta baş verdi.';
-          if (response.body.isNotEmpty) {
-            try {
-              final errorData = json.decode(response.body);
-              if (errorData is Map<String, dynamic>) {
-                final errorTitle = errorData['title'] ?? 'Bilinməyən xəta';
-                final errors = (errorData['errors'] as Map<String, dynamic>?)
-                    ?.values
-                    .expand((list) => list)
-                    .join('\n');
-                errorMessage = '$errorTitle\n${errors ?? ''}';
-              } else {
-                errorMessage = response.body;
-              }
-            } catch (_) {
-              errorMessage = response.body;
-            }
-          }
-          throw Exception(errorMessage);
-        }
-      } catch (e) {
-        String errorMessage;
-        if (e is http.ClientException) {
-          errorMessage = 'Şəbəkə xətası baş verdi. Zəhmət olmasa internet bağlantınızı yoxlayın.';
-        } else {
-          errorMessage = 'Müraciət göndərildi';
-        }
+        await context.read<ApiClient>().post(
+              'EducationApplications',
+              body: applicationData,
+            );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
+          const SnackBar(content: Text('Müraciətiniz uğurla göndərildi!')),
+        );
+        Navigator.pop(context);
+      } on ApiException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Müraciəti göndərmək mümkün olmadı.')),
         );
       } finally {
-        setState(() {
+        if (mounted) setState(() {
           _isLoading = false;
         });
       }
@@ -218,7 +179,6 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
                 onChanged: (String? newValue) {
                   setState(() {
                     _selectedField = newValue;
-                    _selectedSubService = null; // Reset sub-service when main service changes
                   });
                 },
                 validator: (value) {

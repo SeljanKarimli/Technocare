@@ -1,13 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // For making HTTP requests
-import 'dart:convert'; // For JSON encoding/decoding
-import 'package:provider/provider.dart'; // For state management
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';// For storing JWT token
-import 'dart:io'; // Import for HttpClient
-
 import 'package:url_launcher/url_launcher.dart';
-import '../navigation.dart'; 
 // FIX: Define methods inside the class
 
 // NEW: Help & Support Screen
@@ -25,11 +17,6 @@ final Uri url = Uri(scheme: 'mailto', path: email);
 await launchUrl(url);
 }
 
-
-Future<void> _launchMap(String address) async {
-final Uri url = Uri.parse('https://www.google.com/maps/place/TECHNOCARE+MMC/data=!4m2!3m1!1s0x0:0xd6fc45c07a7ea798?sa=X&ved=1t:2428&ictx=111');
-await launchUrl(url);
-}
 
   @override
   Widget build(BuildContext context) {

@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // For making HTTP requests
-import 'dart:convert'; // For JSON encoding/decoding
-import 'package:provider/provider.dart'; // For state management
-import 'package:shared_preferences/shared_preferences.dart'; // For storing JWT token
-import 'dart:io'; // Import for HttpClient
 
-import '../navigation.dart'; 
+import 'HomePage.dart';
 
 class LocationSelectionScreen extends StatelessWidget {
   const LocationSelectionScreen({super.key});

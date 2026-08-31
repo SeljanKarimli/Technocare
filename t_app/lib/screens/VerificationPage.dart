@@ -1,8 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../navigation.dart'; // For AuthProvider or your API service
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../repositories/auth_repository.dart';
+import 'LoginScreen.dart';
 
 class VerificationPage extends StatefulWidget {
   final String? email; // Make the email optional
@@ -43,16 +42,18 @@ class _VerificationPageState extends State<VerificationPage> {
         : _emailController.text.toLowerCase(); // Convert to lowercase for consistency
 
     try {
-      // Call your backend via AuthProvider or ApiService
-      final apiService = Provider.of<ApiService>(context, listen: false);
-      final response = await apiService.verifyEmailCode(emailToVerify, _codeController.text);
+      final repository = context.read<AuthRepository>();
+      final response = await repository.verifyEmailCode(emailToVerify, _codeController.text);
 
-      if (response['success'] == true) {
+      if (response['message'] != null) {
         // Verification successful
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Email verified! You can now log in.')),
         );
-        Navigator.pushReplacementNamed(context, '/login'); // Or your login screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
       } else {
         setState(() {
           _errorMessage = response['message'] ?? 'Invalid code.';
@@ -68,17 +69,6 @@ class _VerificationPageState extends State<VerificationPage> {
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  // A dummy method to simulate a verification API call
-  // This should be replaced with your actual API call in ApiService
-  Future<dynamic> _dummyVerifyApiCall(String email, String code) async {
-    await Future.delayed(const Duration(seconds: 2)); // Simulate network delay
-    if (code == "123456" && email.toLowerCase() == "test@example.com") {
-      return {'success': true};
-    } else {
-      return {'success': false, 'message': 'Invalid email or code.'};
     }
   }
 
