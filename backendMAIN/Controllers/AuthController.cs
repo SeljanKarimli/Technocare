@@ -13,12 +13,10 @@ namespace backend.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserService _userService;
-        private readonly EmailService _emailService; // Add EmailService for sending emails
 
-        public AuthController(UserService userService, EmailService emailService)
+        public AuthController(UserService userService)
         {
             _userService = userService;
-            _emailService = emailService;
         }
 
         [HttpPost("register")]
@@ -37,10 +35,9 @@ namespace backend.Controllers
 
                 return Ok(new { message = "Registration successful. Please check your email to verify your account." });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine("REGISTER ERROR: " + ex); // IMPORTANT
-                return StatusCode(500, new { message = "Internal Server Error", error = ex.Message });
+                return StatusCode(500, new { message = "Registration could not be completed." });
             }
         }
 
@@ -70,19 +67,6 @@ namespace backend.Controllers
             return Ok(userResponse); // Contains user info and JWT token
         }
 
-        [HttpGet("verify-email")] // GET /api/auth/verify-email?email={email}&token={token}
-        [AllowAnonymous]
-        public async Task<IActionResult> VerifyEmail([FromQuery] string email, [FromQuery] string token)
-        {
-            var success = await _userService.VerifyEmailAsync(email, token);
-
-            if (success)
-            {
-                return Ok(new { message = "Email verified successfully! You can now log in." });
-            }
-            return BadRequest(new { message = "Invalid verification link or email already verified." });
-        }
-
         [HttpPost("forgot-password")] // POST /api/auth/forgot-password
         [AllowAnonymous]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
@@ -95,6 +79,18 @@ namespace backend.Controllers
             // Always return success to avoid exposing valid emails, even if user doesn't exist
             await _userService.SendPasswordResetEmailAsync(request.Email);
             return Ok(new { message = "A password reset link has been sent to your inbox." });
+        }
+
+        [HttpDelete("delete-my-account")]
+        [Authorize]
+        public async Task<IActionResult> DeleteMyAccount()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized();
+            }
+            return await _userService.DeleteAsync(userId) ? NoContent() : NotFound();
         }
 
         
@@ -128,25 +124,15 @@ namespace backend.Controllers
             // Similar to forgot-password, return success even if email not found or already verified
             // to avoid exposing user existence/status.
             await _userService.ResendVerificationEmailAsync(request.Email);
-            return Ok(new { message = "A new verification link has been sent to your inbox." });
+            return Ok(new { message = "If the account is unverified, a new code has been sent." });
         }
 
         [HttpPost("resend-code")] // POST /api/auth/resend-code
         [AllowAnonymous]
         public async Task<IActionResult> ResendVerificationCode([FromBody] ForgotPasswordRequest request)
         {
-            var user = await _userService.GetByEmailAsync(request.Email);
-            if (user == null || user.EmailVerified)
-                return Ok(new { message = "If your account is unverified, a new code has been sent." });
-
-            var code = new Random().Next(100000, 999999).ToString();
-            user.EmailVerificationCode = code;
-            user.EmailVerificationCodeExpires = DateTime.UtcNow.AddMinutes(10);
-            await _userService.UpdateAsync(user);
-
-            await _emailService.SendVerificationCodeEmail(user.Email, code);
-
-            return Ok(new { message = "Verification code resent." });
+            await _userService.ResendVerificationEmailAsync(request.Email);
+            return Ok(new { message = "If the account is unverified, a new code has been sent." });
         }
 
         [HttpGet("{id}")] // GET /api/auth/{id}
@@ -202,6 +188,7 @@ namespace backend.Controllers
         }
         // GET /api/auth/users
         [HttpGet("users")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAllUsers()
         {
             var users = await _userService.GetAllAsync();
@@ -223,8 +210,8 @@ namespace backend.Controllers
 
         public class VerifyEmailRequest
         {
-            public string Email { get; set; }
-            public string Code { get; set; }
+            public string Email { get; set; } = null!;
+            public string Code { get; set; } = null!;
         }
     }
 }

@@ -1,14 +1,13 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 
 import '../navigation.dart';
+import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool returnToPrevious;
+
+  const LoginScreen({super.key, this.returnToPrevious = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -190,12 +189,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
 
                         if (success) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const HomePage(),
-                            ),
-                          );
+                          if (widget.returnToPrevious) {
+                            Navigator.pop(context, true);
+                          } else {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (context) => const HomePage()),
+                              (route) => false,
+                            );
+                          }
                         } else {
                           _showErrorSnackBar(
                             authProvider.errorMessage ??

@@ -10,20 +10,12 @@ namespace backend.Services;
 public class EmailService
 {
     private readonly EmailSettings _emailSettings;
+    private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IOptions<EmailSettings> emailSettings)
+    public EmailService(IOptions<EmailSettings> emailSettings, ILogger<EmailService> logger)
     {
         _emailSettings = emailSettings.Value;
-
-        // Debugging output
-        Console.WriteLine("--- EmailSettings Debug (Constructor) ---");
-        Console.WriteLine($"SmtpServer: {_emailSettings.SmtpServer ?? "NULL"}");
-        Console.WriteLine($"SmtpPort: {_emailSettings.SmtpPort}");
-        Console.WriteLine($"SmtpUser: {_emailSettings.SmtpUser ?? "NULL"}");
-        Console.WriteLine($"SmtpPass: {(!string.IsNullOrEmpty(_emailSettings.SmtpPass) ? "******" : "NULL/Empty")}");
-        Console.WriteLine($"SenderName: {_emailSettings.SenderName ?? "NULL"}");
-        Console.WriteLine($"SenderEmail: {_emailSettings.SenderEmail ?? "NULL"}");
-        Console.WriteLine("-----------------------------------------");
+        _logger = logger;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string htmlMessage)
@@ -34,11 +26,6 @@ public class EmailService
         }
 
         var email = new MimeMessage();
-
-        Console.WriteLine("--- MailboxAddress Creation Debug ---");
-        Console.WriteLine($"Creating sender address with Name: {_emailSettings.SenderName}, Email: {_emailSettings.SenderEmail}");
-        Console.WriteLine($"Creating recipient address with Email: {toEmail}");
-        Console.WriteLine("-----------------------------------");
 
         email.From.Add(new MailboxAddress(_emailSettings.SenderName, _emailSettings.SenderEmail));
         email.To.Add(new MailboxAddress("", toEmail));
@@ -57,7 +44,7 @@ public class EmailService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error sending email: {ex.Message}");
+            _logger.LogWarning("Email delivery failed: {ExceptionType}", ex.GetType().Name);
             throw;
         }
     }

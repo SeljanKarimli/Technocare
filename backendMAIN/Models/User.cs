@@ -119,5 +119,5 @@ public class UserResponse
     public string Role { get; set; } = null!;
     public bool EmailVerified { get; set; }
     public string? Token { get; set; } // JWT token
-    public string CartId { get; set; } = null!;
+    public string? CartId { get; set; }
 }

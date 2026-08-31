@@ -16,26 +16,31 @@ public class UserService
 {
     private readonly IMongoCollection<User> _usersCollection;
     private readonly IMongoCollection<Cart> _cartsCollection;
+    private readonly IMongoCollection<ShopCart> _shopCartsCollection;
     private readonly IConfiguration _configuration;
     private readonly EmailService _emailService;
     private readonly TokenService _tokenService;
     private readonly JwtSettings _jwtSettings;
+    private readonly ILogger<UserService> _logger;
 
     public UserService(
         IOptions<MongoDbSettings> mongoDbSettings,
         IOptions<JwtSettings> jwtSettings,
         EmailService emailService,
         TokenService tokenService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<UserService> logger)
     {
         var mongoClient = new MongoClient(mongoDbSettings.Value.ConnectionString);
         var mongoDatabase = mongoClient.GetDatabase(mongoDbSettings.Value.DatabaseName);
         _usersCollection = mongoDatabase.GetCollection<User>(mongoDbSettings.Value.UsersCollectionName);
         _cartsCollection = mongoDatabase.GetCollection<Cart>("Carts");
+        _shopCartsCollection = mongoDatabase.GetCollection<ShopCart>(mongoDbSettings.Value.ShopCartsCollectionName);
         _emailService = emailService;
         _tokenService = tokenService;
         _jwtSettings = jwtSettings.Value;
         _configuration = configuration;
+        _logger = logger;
     }
 
     // Hashes a password using SHA256
@@ -48,6 +53,23 @@ public class UserService
     public async Task<List<User>> GetAllAsync()
     {
         return await _usersCollection.Find(_ => true).ToListAsync();
+    }
+
+    public async Task<bool> DeleteAsync(string userId)
+    {
+        var user = await GetByIdAsync(userId);
+        if (user is null)
+        {
+            return false;
+        }
+
+        await _shopCartsCollection.DeleteManyAsync(cart => cart.UserId == userId);
+        if (!string.IsNullOrWhiteSpace(user.CartId))
+        {
+            await _cartsCollection.DeleteOneAsync(cart => cart.Id == user.CartId);
+        }
+        var result = await _usersCollection.DeleteOneAsync(item => item.Id == userId);
+        return result.DeletedCount == 1;
     }
 
     public bool VerifyPassword(string inputPassword, string storedHash)
@@ -101,17 +123,19 @@ public class UserService
 
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(secret);
+        var userId = user.Id
+            ?? throw new InvalidOperationException("Cannot issue a token for a user without an ID.");
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]
             {
-            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new Claim(ClaimTypes.NameIdentifier, userId),
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Role ?? "User")
         }),
             Expires = DateTime.UtcNow.AddMinutes(
-                _configuration.GetValue<int>("JwtSettings:ExpiryInMinutes", 1440)),
+                _configuration.GetValue<int>("JwtSettings:ExpiryMinutes", 60)),
             Issuer = issuer,
             Audience = audience,
             SigningCredentials = new SigningCredentials(
@@ -131,7 +155,7 @@ public class UserService
             return null;
 
 
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
 
 
         // FIRST: Create empty cart for the new user
@@ -269,7 +293,7 @@ public class UserService
         }
         else
         {
-            Console.WriteLine($"Warning: User email is null or empty for password reset for user ID {user.Id}. Skipping email sending.");
+            _logger.LogWarning("Password reset email was skipped because the stored email address is empty.");
         }
 
         return true;
@@ -291,22 +315,19 @@ public class UserService
             return true;
         }
 
-        // Generate a new verification token
-        user.VerificationToken = GenerateRandomToken();
-        var update = Builders<User>.Update.Set(u => u.VerificationToken, user.VerificationToken);
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        var update = Builders<User>.Update
+            .Set(u => u.EmailVerificationCode, code)
+            .Set(u => u.EmailVerificationCodeExpires, DateTime.UtcNow.AddMinutes(10));
         await _usersCollection.UpdateOneAsync(u => u.Id == user.Id, update);
-
-        // Send new verification email
-        string verificationLink = $"http://localhost:5001/api/auth/verify-email?email={user.Email}&token={user.VerificationToken}"; // Adjust URL for production
-        string emailBody = $"A new verification link for your Technocare account has been requested. Please verify your email by clicking on this link: <a href=\"{verificationLink}\">Verify Email</a>";
 
         if (!string.IsNullOrEmpty(user.Email))
         {
-            await _emailService.SendEmailAsync(user.Email, "Resend Verification Link for Technocare", emailBody);
+            await _emailService.SendVerificationCodeEmail(user.Email, code);
         }
         else
         {
-            Console.WriteLine($"Warning: User email is null or empty for resend verification for user ID {user.Id}. Skipping email sending.");
+            _logger.LogWarning("Verification email was skipped because the stored email address is empty.");
         }
         return true;
     }
@@ -352,7 +373,7 @@ public class UserService
     public async Task RegisterUserAsync(User user)
     {
         // ... existing user creation logic ...
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         user.EmailVerificationCode = code;
         user.EmailVerificationCodeExpires = DateTime.UtcNow.AddMinutes(10);
         user.EmailVerified = false;

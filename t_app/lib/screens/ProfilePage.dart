@@ -1,177 +1,88 @@
-﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // For making HTTP requests
-import 'dart:convert'; // For JSON encoding/decoding
-import 'package:provider/provider.dart'; // For state management
-import 'package:shared_preferences/shared_preferences.dart'; // For storing JWT token
-import 'dart:io'; // Import for HttpClient
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../navigation.dart'; 
+import '../core/api_client.dart';
+import '../providers/auth_provider.dart';
+import 'AboutUsScreen.dart';
+import 'HelpSupportScreen.dart';
+import 'HomePage.dart';
+import 'ShopOrdersPage.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Hesabı silmək?'),
+        content: const Text('Bu əməliyyat geri qaytarıla bilməz. Hesabınız və aktiv səbətiniz silinəcək.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Ləğv et')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700), child: const Text('Hesabı sil')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await context.read<ApiClient>().delete('Auth/delete-my-account', authenticated: true);
+      await context.read<AuthProvider>().logout();
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomePage()), (_) => false);
+      }
+    } catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString()), backgroundColor: Colors.red.shade700));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-
+    final auth = context.watch<AuthProvider>();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hesabım', style: TextStyle(color: Colors.black)),
-        automaticallyImplyLeading: false,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.person,
-                size: 60,
-                color: Colors.green.shade700,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              authProvider.userName ?? 'Ad, Soyad',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              authProvider.userEmail ?? 'email@example.com',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 32),
-            _buildProfileOption(
-              context,
-              Icons.shopping_bag_outlined,
-              'Sifarişlərim',
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MyOrdersScreen()),
-                );
-              },
-            ),
-            _buildProfileOption(
-              context,
-              Icons.help_outline,
-              'Yardım və Dəstək',
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
-                );
-              },
-            ),
-            _buildProfileOption(
-              context,
-              Icons.info_outline,
-              'Haqqımızda',
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AboutUsScreen()),
-                );
-              },
-            ),
-            const SizedBox(height: 32),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [Colors.red.shade400, Colors.red.shade600],
-                ),
-              ),
-              child: ElevatedButton(
-                onPressed: () {
-                  authProvider.logout();
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (Route<dynamic> route) => false,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
-                ),
-                child: const Text(
-                  'Çıxış',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileOption(BuildContext context, IconData icon, String title, VoidCallback onTap) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12.0),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: Colors.green, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey[400],
-              ),
-            ],
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 24, 18, 120),
+        children: [
+          const CircleAvatar(radius: 45, backgroundColor: Color(0xFFEAF7E5), child: Icon(Icons.person_rounded, size: 48, color: Color(0xFF3E8F2E))),
+          const SizedBox(height: 14),
+          Text(auth.userName?.isNotEmpty == true ? auth.userName! : 'Technocare istifadəçisi', textAlign: TextAlign.center, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 5),
+          Text(auth.userEmail ?? '', textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54)),
+          const SizedBox(height: 28),
+          _ProfileTile(icon: Icons.shopping_bag_outlined, title: 'Sifarişlərim', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopOrdersPage()))),
+          _ProfileTile(icon: Icons.help_outline_rounded, title: 'Yardım və dəstək', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()))),
+          _ProfileTile(icon: Icons.info_outline_rounded, title: 'Haqqımızda', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutUsScreen()))),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: () async {
+              await auth.logout();
+              if (context.mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomePage()), (_) => false);
+            },
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Çıxış'),
           ),
-        ),
+          const SizedBox(height: 10),
+          TextButton.icon(onPressed: () => _deleteAccount(context), icon: const Icon(Icons.delete_forever_outlined), label: const Text('Hesabı sil'), style: TextButton.styleFrom(foregroundColor: Colors.red.shade700)),
+        ],
       ),
     );
   }
+}
+
+class _ProfileTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  const _ProfileTile({required this.icon, required this.title, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 11),
+    child: ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      leading: CircleAvatar(backgroundColor: const Color(0xFFEAF7E5), child: Icon(icon, color: const Color(0xFF3E8F2E))),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      trailing: const Icon(Icons.chevron_right_rounded),
+    ),
+  );
 }

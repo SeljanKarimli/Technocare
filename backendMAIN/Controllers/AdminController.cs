@@ -116,9 +116,9 @@ namespace backend.Controllers
                     PendingVerifications = totalUsers - verifiedUsers
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { message = "Failed to retrieve stats", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to retrieve stats" });
             }
         }
 
