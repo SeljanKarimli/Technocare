@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:technocare/models/home_content.dart';
 import 'package:technocare/models/shop_models.dart';
+import 'package:technocare/models/site_project.dart';
 
 void main() {
   test('homepage blocks preserve remote order and unknown types', () {
@@ -9,7 +10,12 @@ void main() {
       'updatedAt': '2026-08-31T10:00:00Z',
       'sections': [
         {'id': 'future', 'type': 'future_block', 'order': 9},
-        {'id': 'hero', 'type': 'hero', 'order': 0, 'images': ['https://technocare.az/hero.jpg']},
+        {
+          'id': 'hero',
+          'type': 'hero',
+          'order': 0,
+          'images': ['https://technocare.az/hero.jpg'],
+        },
       ],
     });
 
@@ -49,5 +55,24 @@ void main() {
     expect(page.minPrice, 10);
     expect(page.maxPrice, 2000);
     expect(page.inStockCount, 18);
+  });
+
+  test('project images are deduplicated and provide a primary fallback', () {
+    final project = SiteProject.fromJson({
+      'id': 2829,
+      'name': 'STS Kran',
+      'imageUrl': '',
+      'images': [
+        'https://technocare.az/sts-main.webp',
+        'https://technocare.az/sts-main.webp',
+        'https://technocare.az/sts-panel.webp',
+      ],
+    });
+
+    expect(project.primaryImage, 'https://technocare.az/sts-main.webp');
+    expect(project.allImages, [
+      'https://technocare.az/sts-main.webp',
+      'https://technocare.az/sts-panel.webp',
+    ]);
   });
 }

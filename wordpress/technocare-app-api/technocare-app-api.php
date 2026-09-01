@@ -137,7 +137,7 @@ final class Technocare_App_API
             return new WP_REST_Response(['message' => 'Homepage is not configured.'], 503);
         }
 
-        $html = apply_filters('the_content', $page->post_content);
+        $html = self::render_post_content($page);
         $sections = self::extract_home_sections($html);
         $payload = [
             'schemaVersion' => 1,
@@ -354,6 +354,26 @@ final class Technocare_App_API
     private static function clean_text(string $value): string
     {
         return trim(preg_replace('/\s+/u', ' ', html_entity_decode(wp_strip_all_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
+    }
+
+    private static function render_post_content(WP_Post $post): string
+    {
+        $html = (string) apply_filters('the_content', $post->post_content);
+        if (!class_exists('\\Elementor\\Plugin') || get_post_meta($post->ID, '_elementor_data', true) === '') {
+            return $html;
+        }
+        try {
+            $frontend = \Elementor\Plugin::instance()->frontend;
+            if (is_object($frontend) && method_exists($frontend, 'get_builder_content_for_display')) {
+                $elementor_html = (string) $frontend->get_builder_content_for_display($post->ID, false);
+                if (trim($elementor_html) !== '') {
+                    return $elementor_html;
+                }
+            }
+        } catch (\Throwable $_exception) {
+            // Keep the standard WordPress rendering as a safe fallback.
+        }
+        return $html;
     }
 
     public static function products(WP_REST_Request $request): WP_REST_Response
@@ -589,6 +609,26 @@ final class Technocare_App_API
     {
         $page = max(1, absint($request->get_param('page') ?: 1));
         $page_size = min(30, max(1, absint($request->get_param('pageSize') ?: 12)));
+        $landing = get_page_by_path('layiheler', OBJECT, 'page');
+        if ($landing instanceof WP_Post && $landing->post_status === 'publish') {
+            $content = self::render_post_content($landing);
+            $projects = self::extract_project_cards($content, $landing);
+            if ($projects !== []) {
+                $total = count($projects);
+                $total_pages = (int) ceil($total / $page_size);
+                $items = array_slice($projects, ($page - 1) * $page_size, $page_size);
+                return self::cacheable_response([
+                    'items' => array_values($items),
+                    'page' => $page,
+                    'pageSize' => $page_size,
+                    'total' => $total,
+                    'totalPages' => $total_pages,
+                ], (int) get_post_modified_time('U', true, $landing), 300);
+            }
+        }
+
+        // Compatibility fallback for installations where projects are real
+        // portfolio posts instead of Elementor cards on the projects page.
         $query = new WP_Query([
             'post_type' => post_type_exists('portfolio') ? 'portfolio' : 'post',
             'post_status' => 'publish',
@@ -598,24 +638,8 @@ final class Technocare_App_API
             'order' => 'DESC',
         ]);
         $items = array_map(static function (WP_Post $post): array {
-            $content = apply_filters('the_content', $post->post_content);
-            $images = [];
-            if (class_exists('DOMDocument') && trim($content) !== '') {
-                $document = new DOMDocument('1.0', 'UTF-8');
-                libxml_use_internal_errors(true);
-                $document->loadHTML('<?xml encoding="UTF-8">' . $content, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-                libxml_clear_errors();
-                foreach ($document->getElementsByTagName('img') as $image) {
-                    $url = $image->getAttribute('src');
-                    if ($url !== '' && !in_array($url, $images, true)) {
-                        $images[] = esc_url_raw($url);
-                    }
-                }
-            }
-            $featured = get_the_post_thumbnail_url($post, 'large') ?: '';
-            if ($featured !== '') {
-                array_unshift($images, $featured);
-            }
+            $content = self::render_post_content($post);
+            $images = self::project_page_images($post, $content);
             return [
                 'id' => $post->ID,
                 'name' => self::clean_text(get_the_title($post)),
@@ -637,13 +661,211 @@ final class Technocare_App_API
         ], time(), 300);
     }
 
+    /** @return array<int, array<string, mixed>> */
+    private static function extract_project_cards(string $html, WP_Post $landing): array
+    {
+        if (!class_exists('DOMDocument') || trim($html) === '') {
+            return [];
+        }
+
+        $document = new DOMDocument('1.0', 'UTF-8');
+        libxml_use_internal_errors(true);
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        $xpath = new DOMXPath($document);
+        $items = [];
+        $seen = [];
+
+        foreach ($xpath->query('//h1[a[@href]]|//h2[a[@href]]|//h3[a[@href]]|//h4[a[@href]]') ?: [] as $heading) {
+            if (!$heading instanceof DOMElement) {
+                continue;
+            }
+            $anchor = $xpath->query('.//a[@href]', $heading)?->item(0);
+            if (!$anchor instanceof DOMElement) {
+                continue;
+            }
+            $url = self::normalize_public_url($anchor->getAttribute('href'));
+            if (!self::is_project_detail_url($url) || isset($seen[$url])) {
+                continue;
+            }
+            $title = self::clean_text($heading->textContent ?? '');
+            if ($title === '') {
+                continue;
+            }
+
+            $container = $heading;
+            $candidate = $heading->parentNode;
+            for ($depth = 0; $depth < 7 && $candidate instanceof DOMElement; $depth++) {
+                $container = $candidate;
+                if (($xpath->query('.//img', $candidate)?->length ?? 0) > 0) {
+                    break;
+                }
+                $candidate = $candidate->parentNode;
+            }
+
+            $card_image = '';
+            foreach ($xpath->query('.//img', $container) ?: [] as $image) {
+                if ($image instanceof DOMElement) {
+                    $card_image = self::image_url_from_element($image);
+                    if ($card_image !== '') {
+                        break;
+                    }
+                }
+            }
+
+            $description = '';
+            foreach ($xpath->query('.//p', $container) ?: [] as $paragraph) {
+                $value = self::clean_text($paragraph->textContent ?? '');
+                if ($value !== '' && $value !== $title) {
+                    $description = $value;
+                    break;
+                }
+            }
+
+            $project_id = url_to_postid($url);
+            $project_page = $project_id > 0 ? get_post($project_id) : null;
+            $images = $card_image !== '' ? [$card_image] : [];
+            $content = '';
+            $updated_at = get_post_modified_time(DATE_ATOM, true, $landing);
+            if ($project_page instanceof WP_Post && $project_page->post_status === 'publish') {
+                $detail_html = $project_page->post_content !== ''
+                    ? apply_filters('the_content', $project_page->post_content)
+                    : '';
+                $images = array_values(array_unique(array_merge(
+                    $images,
+                    self::project_page_images($project_page, $detail_html)
+                )));
+                $content = self::clean_text(wp_strip_all_tags($detail_html));
+                if ($description === '') {
+                    $description = self::clean_text(get_the_excerpt($project_page));
+                }
+                $updated_at = get_post_modified_time(DATE_ATOM, true, $project_page);
+            }
+
+            $items[] = [
+                'id' => $project_id > 0 ? $project_id : -abs(crc32($url)),
+                'name' => $title,
+                'description' => $description,
+                'content' => $content,
+                'imageUrl' => $images[0] ?? '',
+                'images' => array_slice($images, 0, 30),
+                'url' => $url,
+                'updatedAt' => $updated_at,
+            ];
+            $seen[$url] = true;
+        }
+
+        return $items;
+    }
+
+    /** @return string[] */
+    private static function project_page_images(WP_Post $post, string $html = ''): array
+    {
+        $images = [];
+        $featured = get_the_post_thumbnail_url($post, 'full') ?: '';
+        self::append_image_url($images, $featured);
+
+        if (class_exists('DOMDocument') && trim($html) !== '') {
+            $document = new DOMDocument('1.0', 'UTF-8');
+            libxml_use_internal_errors(true);
+            $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+            libxml_clear_errors();
+            foreach ($document->getElementsByTagName('img') as $image) {
+                if ($image instanceof DOMElement) {
+                    self::append_image_url($images, self::image_url_from_element($image));
+                }
+            }
+        }
+
+        $elementor_data = json_decode((string) get_post_meta($post->ID, '_elementor_data', true), true);
+        if (is_array($elementor_data)) {
+            self::collect_elementor_image_urls($elementor_data, $images);
+        }
+        return array_values($images);
+    }
+
+    /** @param mixed $value @param string[] $images */
+    private static function collect_elementor_image_urls($value, array &$images): void
+    {
+        if (is_string($value)) {
+            self::append_image_url($images, $value);
+            return;
+        }
+        if (!is_array($value)) {
+            return;
+        }
+        foreach ($value as $child) {
+            self::collect_elementor_image_urls($child, $images);
+        }
+    }
+
+    /** @param string[] $images */
+    private static function append_image_url(array &$images, string $candidate): void
+    {
+        $url = self::normalize_public_url($candidate);
+        $path = strtolower((string) wp_parse_url($url, PHP_URL_PATH));
+        if ($url === '' || !preg_match('/\.(?:avif|gif|jpe?g|png|svg|webp)$/', $path)) {
+            return;
+        }
+        if (!in_array($url, $images, true)) {
+            $images[] = $url;
+        }
+    }
+
+    private static function image_url_from_element(DOMElement $image): string
+    {
+        foreach (['data-lazy-src', 'data-src', 'src'] as $attribute) {
+            $url = self::normalize_public_url($image->getAttribute($attribute));
+            if ($url !== '' && !str_starts_with($url, 'data:')) {
+                return $url;
+            }
+        }
+        return '';
+    }
+
+    private static function normalize_public_url(string $candidate): string
+    {
+        $url = trim(html_entity_decode($candidate, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        if ($url === '' || str_starts_with($url, 'data:') || str_starts_with($url, 'javascript:')) {
+            return '';
+        }
+        if (str_starts_with($url, '//')) {
+            $scheme = (string) wp_parse_url(home_url('/'), PHP_URL_SCHEME);
+            $url = ($scheme !== '' ? $scheme : 'https') . ':' . $url;
+        } elseif (str_starts_with($url, '/')) {
+            $url = home_url($url);
+        } elseif (!preg_match('#^https?://#i', $url)) {
+            $url = home_url('/' . ltrim($url, '/'));
+        }
+        $home_host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+        $url_host = strtolower((string) wp_parse_url($url, PHP_URL_HOST));
+        if (wp_parse_url(home_url('/'), PHP_URL_SCHEME) === 'https' && $home_host !== '' && $url_host === $home_host) {
+            $url = set_url_scheme($url, 'https');
+        }
+        return esc_url_raw($url);
+    }
+
+    private static function is_project_detail_url(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+        $home_host = strtolower((string) wp_parse_url(home_url('/'), PHP_URL_HOST));
+        $url_host = strtolower((string) wp_parse_url($url, PHP_URL_HOST));
+        $path = '/' . trim((string) wp_parse_url($url, PHP_URL_PATH), '/');
+        // Most project details live below /layiheler/, but some newer cards are
+        // regular top-level pages. The project-card heading and image checks in
+        // extract_project_cards provide the structural boundary here.
+        return $url_host === $home_host && $path !== '/' && strtolower($path) !== '/layiheler';
+    }
+
     private static function page_collection(string $landing_slug): WP_REST_Response
     {
         $landing = get_page_by_path($landing_slug, OBJECT, 'page');
         if (!$landing instanceof WP_Post || $landing->post_status !== 'publish') {
             return new WP_REST_Response(['message' => 'Content page is not configured.'], 503);
         }
-        $content = apply_filters('the_content', $landing->post_content);
+        $content = self::render_post_content($landing);
         $page_ids = [];
         if (class_exists('DOMDocument')) {
             $document = new DOMDocument('1.0', 'UTF-8');
@@ -809,7 +1031,7 @@ final class Technocare_App_API
     /** @return array<string, mixed> */
     private static function map_content_page(WP_Post $page): array
     {
-        $html = apply_filters('the_content', $page->post_content);
+        $html = self::render_post_content($page);
         $images = [];
         $featured = get_the_post_thumbnail_url($page, 'large') ?: '';
         if ($featured !== '') {

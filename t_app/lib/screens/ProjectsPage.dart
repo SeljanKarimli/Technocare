@@ -26,9 +26,11 @@ class _ProjectsPageState extends State<ProjectsPage> {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return _projects;
     return _projects
-        .where((project) =>
-            project.name.toLowerCase().contains(query) ||
-            project.description.toLowerCase().contains(query))
+        .where(
+          (project) =>
+              project.name.toLowerCase().contains(query) ||
+              project.description.toLowerCase().contains(query),
+        )
         .toList();
   }
 
@@ -64,9 +66,10 @@ class _ProjectsPageState extends State<ProjectsPage> {
     try {
       final response = Map<String, dynamic>.from(
         await context.read<ApiClient>().get(
-          'v1/content/projects',
-          query: {'page': _page, 'pageSize': 12},
-        ) as Map,
+              'v1/content/projects',
+              query: {'page': _page, 'pageSize': 12},
+            )
+            as Map,
       );
       final items = (response['items'] as List? ?? const [])
           .whereType<Map>()
@@ -122,7 +125,10 @@ class _ProjectsPageState extends State<ProjectsPage> {
             const SliverPadding(
               padding: EdgeInsets.fromLTRB(16, 14, 16, 12),
               sliver: SliverToBoxAdapter(
-                child: Text('Layihələr', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                child: Text(
+                  'Layihələr',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+                ),
               ),
             ),
             if (_error != null && _projects.isEmpty)
@@ -137,7 +143,10 @@ class _ProjectsPageState extends State<ProjectsPage> {
             else if (!_loading && items.isEmpty)
               const SliverFillRemaining(
                 hasScrollBody: false,
-                child: _MessageState(icon: Icons.factory_outlined, message: 'Layihə tapılmadı.'),
+                child: _MessageState(
+                  icon: Icons.factory_outlined,
+                  message: 'Layihə tapılmadı.',
+                ),
               )
             else
               SliverPadding(
@@ -176,49 +185,74 @@ class _ProjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        clipBehavior: Clip.antiAlias,
-        margin: EdgeInsets.zero,
-        child: InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => ProjectDetailPage(project: project)),
+    clipBehavior: Clip.antiAlias,
+    margin: EdgeInsets.zero,
+    child: InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ProjectDetailPage(project: project)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SizedBox.expand(
+              child: project.primaryImage.isEmpty
+                  ? const ColoredBox(
+                      color: Color(0xFFEAF0EB),
+                      child: Icon(
+                        Icons.factory_outlined,
+                        size: 44,
+                        color: Color(0xFF3E8F2E),
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: project.primaryImage,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => const ColoredBox(
+                        color: Color(0xFFEAF0EB),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => const ColoredBox(
+                        color: Color(0xFFEAF0EB),
+                        child: Icon(
+                          Icons.factory_outlined,
+                          size: 44,
+                          color: Color(0xFF3E8F2E),
+                        ),
+                      ),
+                    ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: SizedBox.expand(
-                  child: CachedNetworkImage(
-                    imageUrl: project.imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => const ColoredBox(
-                      color: Color(0xFFEAF0EB),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    ),
-                    errorWidget: (_, __, ___) => const ColoredBox(
-                      color: Color(0xFFEAF0EB),
-                      child: Icon(Icons.factory_outlined, size: 44, color: Color(0xFF3E8F2E)),
-                    ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  project.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                if (project.description.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    project.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(project.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    if (project.description.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(project.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+                ],
+              ],
+            ),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _MessageState extends StatelessWidget {
@@ -230,20 +264,23 @@ class _MessageState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 56, color: const Color(0xFF3E8F2E)),
-              const SizedBox(height: 12),
-              Text(message, textAlign: TextAlign.center),
-              if (action != null) ...[
-                const SizedBox(height: 16),
-                FilledButton(onPressed: action, child: const Text('Yenidən cəhd et')),
-              ],
-            ],
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 56, color: const Color(0xFF3E8F2E)),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center),
+          if (action != null) ...[
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: action,
+              child: const Text('Yenidən cəhd et'),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }

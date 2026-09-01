@@ -48,6 +48,7 @@ jobs:
         with:
           php-version: "8.2"
       - run: php -l wordpress/technocare-app-api/technocare-app-api.php
+      - run: php wordpress/technocare-app-api/tests/project-parser-smoke.php
       - name: Reject insecure production client overrides
         shell: bash
         run: |
