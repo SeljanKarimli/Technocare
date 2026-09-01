@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/content_defaults.dart';
-import 'ApplicationFormEPage.dart';
-import 'RemoteContentCollection.dart';
+import 'application_form_e_page.dart';
+import 'remote_content_collection.dart';
 
 class EducationPage extends StatelessWidget {
   const EducationPage({super.key});

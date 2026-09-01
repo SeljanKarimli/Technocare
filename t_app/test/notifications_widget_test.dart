@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:technocare/core/api_client.dart';
 import 'package:technocare/core/secure_session.dart';
-import 'package:technocare/screens/NotificationsPage.dart';
+import 'package:technocare/screens/notifications_page.dart';
 
 class _FakeApiClient extends ApiClient {
   _FakeApiClient() : super(session: SecureSession());

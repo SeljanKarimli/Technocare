@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 import '../repositories/shop_repository.dart';
-import 'ShopProductDetailPage.dart';
+import 'shop_product_detail_page.dart';
 
 class ShopPage extends StatefulWidget {
   final String initialQuery;
@@ -496,13 +496,14 @@ class _ShopPageState extends State<ShopPage> {
         ),
         itemCount: _products.length + (_loadingMore ? 2 : 0),
         itemBuilder: (_, index) {
-          if (index >= _products.length)
+          if (index >= _products.length) {
             return Container(
               decoration: BoxDecoration(
                 color: const Color(0xFFF0F2EF),
                 borderRadius: BorderRadius.circular(16),
               ),
             );
+          }
           final product = _products[index];
           return _ShopProductCard(
             product: product,
@@ -772,7 +773,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               ),
               const SizedBox(height: 18),
               DropdownButtonFormField<int?>(
-                value: categoryId,
+                initialValue: categoryId,
                 decoration: const InputDecoration(labelText: 'Kateqoriya'),
                 items: [
                   const DropdownMenuItem<int?>(
@@ -793,7 +794,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String?>(
-                value: brand,
+                initialValue: brand,
                 decoration: const InputDecoration(labelText: 'Brend'),
                 items: [
                   const DropdownMenuItem<String?>(
@@ -811,7 +812,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: sort,
+                initialValue: sort,
                 decoration: const InputDecoration(labelText: 'Sıralama'),
                 items: const [
                   DropdownMenuItem(value: 'relevance', child: Text('Uyğunluq')),
@@ -874,7 +875,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: inStock,
-                activeColor: const Color(0xFF2F7623),
+                activeThumbColor: const Color(0xFF2F7623),
                 title: const Text('Yalnız stokda olanlar'),
                 onChanged: (value) => setState(() => inStock = value),
               ),

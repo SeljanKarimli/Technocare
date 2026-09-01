@@ -7,16 +7,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/shop_cart_provider.dart';
 import '../services/whatsapp_order_service.dart';
-import 'CategoriesPage.dart';
-import 'EducationPage.dart';
-import 'LiveHomeScreen.dart';
-import 'LoginScreen.dart';
-import 'NotificationsPage.dart';
-import 'ProfilePage.dart';
-import 'ProjectsPage.dart';
-import 'RegisterScreen.dart';
-import 'ShopCartPage.dart';
-import 'ShopPage.dart';
+import 'categories_page.dart';
+import 'education_page.dart';
+import 'live_home_screen.dart';
+import 'login_screen.dart';
+import 'notifications_page.dart';
+import 'profile_page.dart';
+import 'projects_page.dart';
+import 'register_screen.dart';
+import 'shop_cart_page.dart';
+import 'shop_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/site_project.dart';
 import '../repositories/projects_repository.dart';
-import 'ProjectDetailPage.dart';
+import 'project_detail_page.dart';
 
 class ProjectsPage extends StatefulWidget {
   const ProjectsPage({super.key});

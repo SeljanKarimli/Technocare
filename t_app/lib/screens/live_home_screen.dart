@@ -8,7 +8,7 @@ import '../models/home_content.dart';
 import '../models/shop_models.dart';
 import '../repositories/shop_repository.dart';
 import '../services/whatsapp_order_service.dart';
-import 'ShopProductDetailPage.dart';
+import 'shop_product_detail_page.dart';
 
 class LiveHomeScreen extends StatefulWidget {
   final VoidCallback onOpenShop;

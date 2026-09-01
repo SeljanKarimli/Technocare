@@ -9,7 +9,7 @@ import 'repositories/auth_repository.dart';
 import 'repositories/content_repository.dart';
 import 'repositories/projects_repository.dart';
 import 'repositories/shop_repository.dart';
-import 'screens/HomePage.dart';
+import 'screens/home_page.dart';
 import 'services/whatsapp_order_service.dart';
 
 Future<void> main() async {

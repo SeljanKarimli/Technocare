@@ -153,6 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           _emailController.text,
                           _passwordController.text,
                         );
+                        if (!mounted) return;
 
                         if (success) {
                           if (widget.returnToPrevious) {

@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../providers/auth_provider.dart';
-import 'AboutUsScreen.dart';
-import 'HelpSupportScreen.dart';
-import 'HomePage.dart';
-import 'ShopOrdersPage.dart';
+import 'about_us_screen.dart';
+import 'help_support_screen.dart';
+import 'home_page.dart';
+import 'shop_orders_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -24,9 +24,11 @@ class ProfilePage extends StatelessWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
+    final apiClient = context.read<ApiClient>();
+    final authProvider = context.read<AuthProvider>();
     try {
-      await context.read<ApiClient>().delete('Auth/delete-my-account', authenticated: true);
-      await context.read<AuthProvider>().logout();
+      await apiClient.delete('Auth/delete-my-account', authenticated: true);
+      await authProvider.logout();
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomePage()), (_) => false);
       }

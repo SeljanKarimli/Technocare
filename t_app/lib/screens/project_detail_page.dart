@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/site_project.dart';
-import 'ApplicationFormSPage.dart';
+import 'application_form_s_page.dart';
 
 class ProjectDetailPage extends StatelessWidget {
   final SiteProject project;

@@ -154,7 +154,7 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _selectedField,
+                initialValue: _selectedField,
                 decoration: const InputDecoration(labelText: 'Sahə', prefixIcon: Icon(Icons.category)),
                 items: _applicationFields.keys.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
                 onChanged: (val) => setState(() { _selectedField = val; _selectedSubService = null; }),
@@ -163,8 +163,9 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               const SizedBox(height: 12),
               if (_selectedField != null)
                 DropdownButtonFormField<String>(
+                  key: ValueKey(_selectedField),
                   isExpanded: true, // Prevents overflow
-                  value: _selectedSubService,
+                  initialValue: _selectedSubService,
                   decoration: const InputDecoration(labelText: 'Alt xidmət', prefixIcon: Icon(Icons.list)),
                   items: _applicationFields[_selectedField]!.map((s) => DropdownMenuItem(
                     value: s, 

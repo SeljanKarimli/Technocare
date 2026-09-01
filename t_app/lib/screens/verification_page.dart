@@ -2,11 +2,11 @@
 import 'package:provider/provider.dart';
 import '../repositories/auth_repository.dart';
 import '../core/form_validators.dart';
-import 'LoginScreen.dart';
+import 'login_screen.dart';
 
 class VerificationPage extends StatefulWidget {
   final String? email; // Make the email optional
-  const VerificationPage({Key? key, this.email}) : super(key: key);
+  const VerificationPage({super.key, this.email});
 
   @override
   State<VerificationPage> createState() => _VerificationPageState();
@@ -55,6 +55,7 @@ class _VerificationPageState extends State<VerificationPage> {
     try {
       final repository = context.read<AuthRepository>();
       final response = await repository.verifyEmailCode(emailToVerify, _codeController.text);
+      if (!mounted) return;
 
       if (response['message'] != null) {
         // Verification successful
@@ -71,15 +72,19 @@ class _VerificationPageState extends State<VerificationPage> {
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().contains('Exception') 
-          ? e.toString().substring(11) // Extract the message from the exception
-          : 'Gözlənilməz xəta baş verdi.';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().contains('Exception')
+            ? e.toString().substring(11) // Extract the message from the exception
+            : 'Gözlənilməz xəta baş verdi.';
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

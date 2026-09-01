@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/content_defaults.dart';
-import 'ApplicationFormSPage.dart';
-import 'RemoteContentCollection.dart';
+import 'application_form_s_page.dart';
+import 'remote_content_collection.dart';
 
 class CategoriesPage extends StatelessWidget {
   const CategoriesPage({super.key});

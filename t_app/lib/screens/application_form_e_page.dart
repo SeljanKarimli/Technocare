@@ -89,9 +89,11 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
           const SnackBar(content: Text('Müraciəti göndərmək mümkün olmadı.')),
         );
       } finally {
-        if (mounted) setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -151,7 +153,7 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
               const SizedBox(height: 16),
               // Main Service Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedField,
+                initialValue: _selectedField,
                 decoration: const InputDecoration(
                   labelText: 'Müraciət etdiyiniz təhsil sahəsi',
                   prefixIcon: Icon(Icons.category_outlined),

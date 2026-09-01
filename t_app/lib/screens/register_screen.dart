@@ -4,8 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../core/form_validators.dart';
 import '../providers/auth_provider.dart';
-import 'LoginScreen.dart';
-import 'VerificationPage.dart';
+import 'login_screen.dart';
+import 'verification_page.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
