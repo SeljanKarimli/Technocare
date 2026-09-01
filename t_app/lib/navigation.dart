@@ -22,4 +22,3 @@ export 'screens/ShopPage.dart';
 export 'screens/ShopProductDetailPage.dart';
 export 'screens/ShopCartPage.dart';
 export 'screens/ShopOrdersPage.dart';
-export 'screens/CheckoutWebViewPage.dart';

@@ -3,18 +3,24 @@ class HomeContent {
   final DateTime? updatedAt;
   final String sourceUrl;
   final List<HomeSection> sections;
+  final bool isStale;
+  final DateTime? cachedAt;
 
   const HomeContent({
     required this.schemaVersion,
     required this.updatedAt,
     required this.sourceUrl,
     required this.sections,
+    this.isStale = false,
+    this.cachedAt,
   });
 
   factory HomeContent.fromJson(Map<String, dynamic> json) => HomeContent(
         schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 1,
         updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? ''),
         sourceUrl: json['sourceUrl']?.toString() ?? '',
+        isStale: json['_isStale'] == true,
+        cachedAt: DateTime.tryParse(json['_cachedAt']?.toString() ?? ''),
         sections: (json['sections'] as List? ?? const [])
             .whereType<Map>()
             .map((item) => HomeSection.fromJson(Map<String, dynamic>.from(item)))

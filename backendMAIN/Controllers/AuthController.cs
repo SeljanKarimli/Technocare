@@ -5,11 +5,14 @@ using System.Security.Claims; // For getting user ID from token
 using System.Threading.Tasks;
 using backend.Models;
 using backend.Services;
+using Microsoft.AspNetCore.RateLimiting;
+using System.ComponentModel.DataAnnotations;
 
 namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")] // Base route for this controller: /api/auth
+    [EnableRateLimiting("auth")]
     public class AuthController : ControllerBase
     {
         private readonly UserService _userService;
@@ -31,13 +34,13 @@ namespace backend.Controllers
                 var userResponse = await _userService.RegisterAsync(request);
 
                 if (userResponse == null)
-                    return Conflict(new { message = "Email already registered." });
+                    return Conflict(new { message = "Bu email artıq qeydiyyatdan keçib." });
 
-                return Ok(new { message = "Registration successful. Please check your email to verify your account." });
+                return Ok(new { message = "Qeydiyyat tamamlandı. Email təsdiq kodunu yoxlayın." });
             }
             catch (Exception)
             {
-                return StatusCode(500, new { message = "Registration could not be completed." });
+                return StatusCode(500, new { message = "Qeydiyyatı tamamlamaq mümkün olmadı." });
             }
         }
 
@@ -55,13 +58,13 @@ namespace backend.Controllers
 
             if (userResponse == null)
             {
-                return Unauthorized(new { message = "Invalid email or password." }); // 401 Unauthorized
+                return Unauthorized(new { message = "Email və ya şifrə yanlışdır." }); // 401 Unauthorized
             }
 
             if (!userResponse.EmailVerified)
             {
                 // This message now explicitly mentions checking email for verification, and suggests resending.
-                return StatusCode(403, new { message = "Email not verified. Please check your inbox for a verification link, or use the /api/auth/resend-verification endpoint if needed." }); // 403 Forbidden
+                return StatusCode(403, new { message = "Email təsdiqlənməyib. Gələn kodu daxil edin və ya yeni kod istəyin." }); // 403 Forbidden
             }
 
             return Ok(userResponse); // Contains user info and JWT token
@@ -78,7 +81,7 @@ namespace backend.Controllers
 
             // Always return success to avoid exposing valid emails, even if user doesn't exist
             await _userService.SendPasswordResetEmailAsync(request.Email);
-            return Ok(new { message = "A password reset link has been sent to your inbox." });
+            return Ok(new { message = "Hesab mövcuddursa, şifrə bərpa kodu emailə göndərildi." });
         }
 
         [HttpDelete("delete-my-account")]
@@ -107,9 +110,9 @@ namespace backend.Controllers
 
             if (success)
             {
-                return Ok(new { message = "Password has been reset successfully." });
+                return Ok(new { message = "Şifrə uğurla yeniləndi." });
             }
-            return BadRequest(new { message = "Invalid or expired reset token, or email." });
+            return BadRequest(new { message = "Email və ya bərpa kodu yanlışdır, yaxud kodun vaxtı bitib." });
         }
 
         [HttpPost("resend-verification")] // POST /api/auth/resend-verification
@@ -124,7 +127,7 @@ namespace backend.Controllers
             // Similar to forgot-password, return success even if email not found or already verified
             // to avoid exposing user existence/status.
             await _userService.ResendVerificationEmailAsync(request.Email);
-            return Ok(new { message = "If the account is unverified, a new code has been sent." });
+            return Ok(new { message = "Hesab təsdiqlənməyibsə, yeni kod göndərildi." });
         }
 
         [HttpPost("resend-code")] // POST /api/auth/resend-code
@@ -132,7 +135,7 @@ namespace backend.Controllers
         public async Task<IActionResult> ResendVerificationCode([FromBody] ForgotPasswordRequest request)
         {
             await _userService.ResendVerificationEmailAsync(request.Email);
-            return Ok(new { message = "If the account is unverified, a new code has been sent." });
+            return Ok(new { message = "Hesab təsdiqlənməyibsə, yeni kod göndərildi." });
         }
 
         [HttpGet("{id}")] // GET /api/auth/{id}
@@ -171,20 +174,11 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
         {
-            var user = await _userService.GetByEmailAsync(request.Email);
-            if (user == null || user.EmailVerified)
-                return BadRequest(new { message = "Invalid request." });
-
-            if (user.EmailVerificationCode == request.Code &&
-                user.EmailVerificationCodeExpires > DateTime.UtcNow)
+            if (await _userService.VerifyEmailAsync(request.Email, request.Code))
             {
-                user.EmailVerified = true;
-                user.EmailVerificationCode = null;
-                user.EmailVerificationCodeExpires = null;
-                await _userService.UpdateAsync(user);
-                return Ok(new { message = "Email verified successfully." });
+                return Ok(new { message = "Email uğurla təsdiqləndi." });
             }
-            return BadRequest(new { message = "Invalid or expired code." });
+            return BadRequest(new { message = "Təsdiq kodu yanlışdır və ya vaxtı bitib." });
         }
         // GET /api/auth/users
         [HttpGet("users")]
@@ -210,7 +204,10 @@ namespace backend.Controllers
 
         public class VerifyEmailRequest
         {
+            [Required, EmailAddress, StringLength(254)]
             public string Email { get; set; } = null!;
+
+            [Required, StringLength(12, MinimumLength = 6)]
             public string Code { get; set; } = null!;
         }
     }

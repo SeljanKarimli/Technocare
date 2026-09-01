@@ -28,11 +28,12 @@ public sealed class ContentController : ControllerBase
     [AllowAnonymous]
     [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Any)]
     public async Task<ActionResult<PagedSiteProjectsResponse>> Projects(
+        [FromQuery] string q = "",
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 12,
         CancellationToken cancellationToken = default)
     {
-        return Ok(await _siteClient.GetProjectsAsync(page, pageSize, cancellationToken));
+        return Ok(await _siteClient.GetProjectsAsync(q ?? string.Empty, page, pageSize, cancellationToken));
     }
 
     [HttpGet("services")]

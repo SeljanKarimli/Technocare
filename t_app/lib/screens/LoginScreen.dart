@@ -18,7 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
-  bool _agreeToTerms = false; // ✅ NEW
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -142,33 +141,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
 
-            /// ✅ TERMS & CONDITIONS (MANDATORY)
-            Row(
-              children: [
-                Checkbox(
-                  value: _agreeToTerms,
-                  onChanged: (value) {
-                    setState(() {
-                      _agreeToTerms = value ?? false;
-                    });
-                  },
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _agreeToTerms = !_agreeToTerms;
-                      });
-                    },
-                    child: const Text(
-                      'Şərtlər və qaydalarla razıyam',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
             const SizedBox(height: 16),
 
             authProvider.isLoading
@@ -177,12 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-                        if (!_agreeToTerms) {
-                          _showErrorSnackBar(
-                              'Davam etmək üçün şərtlərlə razılaşmalısınız');
-                          return;
-                        }
-
                         final success = await authProvider.login(
                           _emailController.text,
                           _passwordController.text,

@@ -5,6 +5,13 @@ on:
     branches: [main, "codex/**"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      production_smoke:
+        description: Run smoke tests against deployed production endpoints
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,9 +42,25 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter analyze --fatal-warnings
       - run: flutter test --coverage
       - run: flutter build web --release --dart-define=API_BASE_URL=https://api.technocare.az/api
+      - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.technocare.az/api
+
+  flutter-ios:
+    name: Flutter iOS build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: t_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://api.technocare.az/api
 
   wordpress-plugin:
     name: WordPress plugin
@@ -49,7 +72,25 @@ jobs:
           php-version: "8.2"
       - run: php -l wordpress/technocare-app-api/technocare-app-api.php
       - run: php wordpress/technocare-app-api/tests/project-parser-smoke.php
+      - run: php wordpress/technocare-app-api/tests/search-normalization-smoke.php
+      - name: Package deployable plugin
+        run: zip -r technocare-app-api.zip wordpress/technocare-app-api -x "*/tests/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: technocare-app-api
+          path: technocare-app-api.zip
       - name: Reject insecure production client overrides
         shell: bash
         run: |
           ! grep -R "badCertificateCallback\|HttpOverrides.global\|technocareapi.runasp.net" t_app/lib backendMAIN --exclude-dir=bin --exclude-dir=obj
+
+  production-smoke:
+    name: Deployed endpoint smoke test
+    if: github.event_name == 'workflow_dispatch' && inputs.production_smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/smoke-production.sh
+        env:
+          API_BASE_URL: https://api.technocare.az/api
+          WORDPRESS_BASE_URL: https://technocare.az/wp-json/technocare-app/v1

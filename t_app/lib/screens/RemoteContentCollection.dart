@@ -113,14 +113,14 @@ class _ContentCard extends StatelessWidget {
               SizedBox(
                 width: 124,
                 height: 142,
-                child: item.imageUrl.isEmpty
-                    ? ColoredBox(color: const Color(0xFFEAF0EB), child: Icon(fallbackIcon, size: 44, color: const Color(0xFF3E8F2E)))
-                    : CachedNetworkImage(
-                        imageUrl: item.imageUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => const ColoredBox(color: Color(0xFFEAF0EB)),
-                        errorWidget: (_, __, ___) => ColoredBox(color: const Color(0xFFEAF0EB), child: Icon(fallbackIcon)),
-                      ),
+                child: ColoredBox(
+                  color: const Color(0xFFEAF0EB),
+                  child: Icon(
+                    fallbackIcon,
+                    size: 44,
+                    color: const Color(0xFF2F7623),
+                  ),
+                ),
               ),
               Expanded(
                 child: Padding(
@@ -132,7 +132,7 @@ class _ContentCard extends StatelessWidget {
                       const SizedBox(height: 7),
                       Text(item.summary, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black54)),
                       const SizedBox(height: 8),
-                      const Text('Ətraflı bax', style: TextStyle(color: Color(0xFF3E8F2E), fontWeight: FontWeight.w800)),
+                      const Text('Ətraflı bax', style: TextStyle(color: Color(0xFF2F7623), fontWeight: FontWeight.w800)),
                     ],
                   ),
                 ),
@@ -214,7 +214,7 @@ class _CollectionMessage extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(height: MediaQuery.sizeOf(context).height * .26),
-            Icon(icon, size: 58, color: const Color(0xFF3E8F2E)),
+            Icon(icon, size: 58, color: const Color(0xFF2F7623)),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),

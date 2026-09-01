@@ -58,7 +58,7 @@ void main() {
         'Elektronika xidmətləri',
         'Energetika xidmətləri',
       ]);
-      expect(content.items.first.body, 'Saytdan gələn avtomatika mətni');
+      expect(content.items.first.body, contains('PLC proqramlaşdırılması'));
       expect(content.items[1].body, contains('PCB'));
       expect(content.items[2].body, contains('enerji səmərəliliyi'));
     },

@@ -43,7 +43,7 @@ class _ShopOrdersPageState extends State<ShopOrdersPage> {
               final order = orders[index];
               return Card(child: ListTile(
                 contentPadding: const EdgeInsets.all(16),
-                leading: const CircleAvatar(backgroundColor: Color(0xFFE8F7E3), child: Icon(Icons.receipt_long_outlined, color: Color(0xFF3E8F2E))),
+                leading: const CircleAvatar(backgroundColor: Color(0xFFE8F7E3), child: Icon(Icons.receipt_long_outlined, color: Color(0xFF2F7623))),
                 title: Text('Sifariş #${order.number}', style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Text('${order.createdAt == null ? '' : DateFormat('dd.MM.yyyy').format(order.createdAt!.toLocal())}\n${order.status}'),
                 isThreeLine: true,

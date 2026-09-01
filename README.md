@@ -41,6 +41,7 @@ WordPress plugin:
 | GET | `/wp-json/technocare-app/v1/home` |
 | GET | `/wp-json/technocare-app/v1/products` |
 | GET | `/wp-json/technocare-app/v1/products/{id}` |
+| GET | `/wp-json/technocare-app/v1/suggestions?q=&limit=5` |
 | GET | `/wp-json/technocare-app/v1/categories` |
 | GET | `/wp-json/technocare-app/v1/brands` |
 | GET | `/wp-json/technocare-app/v1/projects` |
@@ -56,6 +57,7 @@ Backend gateway:
 | Public | `GET /api/v1/content/home` |
 | Public | `GET /api/v1/content/projects`, `/services`, `/education` |
 | Public | `GET /api/v1/shop/products`, `/products/{id}`, `/categories`, `/brands` |
+| Public | `GET /api/v1/shop/suggestions?q=&limit=5` |
 | JWT, retained/inactive in the guest flow | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
 | JWT | `/api/notifications/my-notifications` |
 | Public submission | `/api/serviceapplications`, `/api/educationapplications` |
@@ -74,6 +76,7 @@ Product search supports Azerbaijani text, exact/prefix SKU ranking, product name
 3. Activate **Technocare App API** in WordPress.
 4. Open **Settings → Technocare App**, select the published homepage, and confirm supported section visibility/order.
 5. Ensure WooCommerce checkout pages and pretty permalinks are configured.
+6. Allow WP-Cron to finish the first product search-index build. Products are indexed in batches of 200; later product, stock, brand, and category edits update the index automatically.
 
 The plugin reads rendered published content, WooCommerce records, and portfolio pages. Header/footer markup and unsupported sections are not sent. A genuinely new Elementor layout still needs a matching typed block and Flutter renderer.
 
@@ -94,12 +97,14 @@ MongoDbSettings__ConnectionString
 JwtSettings__Secret
 TechnocareSite__SharedSecret
 EmailSettings__SmtpPass
-AdminSettings__Password
+AdminBootstrap__Email
 ```
 
 `TechnocareSite__SharedSecret` must exactly match `TECHNOCARE_APP_SHARED_SECRET`. Configure `Cors__AllowedOrigins__0` only for trusted browser origins. Native mobile requests do not require permissive CORS.
 
-Deploy behind a reverse proxy that forwards `X-Forwarded-For` and `X-Forwarded-Proto`, binds a valid TLS certificate, and redirects HTTP to HTTPS. `/health` checks WordPress and MongoDB dependencies.
+Deploy behind a reverse proxy that forwards `X-Forwarded-For` and `X-Forwarded-Proto`, binds a valid TLS certificate, and redirects HTTP to HTTPS. `/health/live` checks only the process; `/health/ready` checks WordPress and MongoDB dependencies. Verification and password-reset mail is delivered by a durable MongoDB outbox, so a temporary SMTP outage does not roll back registration.
+
+There is no configuration-based admin password. To bootstrap the first administrator, set `AdminBootstrap__Email` to an existing verified BCrypt-backed user for one deployment, verify the role change, then remove the setting. Manage later roles through an authenticated Admin account.
 
 ## 3. Run the Flutter app
 
@@ -126,13 +131,15 @@ flutter build ipa --release --dart-define=API_BASE_URL=https://api.technocare.az
 dotnet test backendMAIN.Tests/backendMAIN.Tests.csproj
 
 Set-Location t_app
-flutter analyze --no-fatal-infos --no-fatal-warnings
+flutter analyze --fatal-warnings
 flutter test
 
 php -l ..\wordpress\technocare-app-api\technocare-app-api.php
+php ..\wordpress\technocare-app-api\tests\project-parser-smoke.php
+php ..\wordpress\technocare-app-api\tests\search-normalization-smoke.php
 ```
 
-CI runs the same backend, Flutter, WordPress syntax, and insecure-client checks on `main`, pull requests, and `codex/**` branches.
+CI runs backend tests, Flutter analysis/tests plus Android, iOS, and web builds, WordPress parser/search tests, and insecure-client checks on `main`, pull requests, and `codex/**` branches. A manual workflow run can enable the deployed production smoke test; it blocks on health, public routes, at least 8,995 products, exactly 26 projects, and all 26 primary images.
 
 ## Rollout order
 

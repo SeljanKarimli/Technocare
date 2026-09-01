@@ -52,16 +52,22 @@ public class EducationApplication
 /// </summary>
 public class CreateEducationApplicationRequest
 {
-    [Required]
+    [Required, StringLength(100, MinimumLength = 2)]
     public string Name { get; set; } = null!;
 
-    [Required]
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
 
-    [Required]
+    [Required, StringLength(32, MinimumLength = 7)]
+    [RegularExpression(@"^(?=(?:\D*\d){7,15}\D*$)[0-9+()\-\s]+$", ErrorMessage = "Telefon nömrəsinin formatı yanlışdır.")]
     public string Phone { get; set; } = null!;
 
-    [Required]
+    [Required, StringLength(100)]
     public string AppliedFor { get; set; } = null!;
+
+    [StringLength(2000)]
     public string? Message { get; set; }
+
+    [StringLength(200)]
+    public string? Website { get; set; }
 }

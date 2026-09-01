@@ -135,6 +135,23 @@ public sealed class ShopTaxonomyResponse
     public List<ShopTaxonomyDto> Items { get; set; } = [];
 }
 
+public sealed class ShopSuggestionDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Sku { get; set; } = string.Empty;
+    public string Brand { get; set; } = string.Empty;
+    public string ImageUrl { get; set; } = string.Empty;
+    public decimal? Price { get; set; }
+    public bool OnSale { get; set; }
+    public bool InStock { get; set; }
+}
+
+public sealed class ShopSuggestionsResponse
+{
+    public List<ShopSuggestionDto> Items { get; set; } = [];
+}
+
 public sealed class AddShopCartItemRequest
 {
     [Range(1, long.MaxValue)]

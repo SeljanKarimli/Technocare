@@ -144,6 +144,8 @@ class ProductPage {
   final double? minPrice;
   final double? maxPrice;
   final int inStockCount;
+  final bool isStale;
+  final DateTime? cachedAt;
 
   const ProductPage({
     required this.items,
@@ -156,6 +158,8 @@ class ProductPage {
     required this.minPrice,
     required this.maxPrice,
     required this.inStockCount,
+    this.isStale = false,
+    this.cachedAt,
   });
 
   factory ProductPage.fromJson(Map<String, dynamic> json) {
@@ -183,8 +187,44 @@ class ProductPage {
       minPrice: ShopProduct._double(facets['minPrice']),
       maxPrice: ShopProduct._double(facets['maxPrice']),
       inStockCount: (facets['inStockCount'] as num?)?.toInt() ?? 0,
+      isStale: json['_isStale'] == true,
+      cachedAt: DateTime.tryParse(json['_cachedAt']?.toString() ?? ''),
     );
   }
+}
+
+class ShopSuggestion {
+  final int id;
+  final String name;
+  final String sku;
+  final String brand;
+  final String imageUrl;
+  final double? price;
+  final bool onSale;
+  final bool inStock;
+
+  const ShopSuggestion({
+    required this.id,
+    required this.name,
+    required this.sku,
+    required this.brand,
+    required this.imageUrl,
+    required this.price,
+    required this.onSale,
+    required this.inStock,
+  });
+
+  factory ShopSuggestion.fromJson(Map<String, dynamic> json) =>
+      ShopSuggestion(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        name: json['name']?.toString() ?? '',
+        sku: json['sku']?.toString() ?? '',
+        brand: json['brand']?.toString() ?? '',
+        imageUrl: json['imageUrl']?.toString() ?? '',
+        price: ShopProduct._double(json['price']),
+        onSale: json['onSale'] == true,
+        inStock: json['inStock'] == true,
+      );
 }
 
 class ShopCartItem {
@@ -248,20 +288,6 @@ class ShopCart {
     currencyCode: json['currencyCode']?.toString() ?? 'AZN',
     currencySymbol: json['currencySymbol']?.toString() ?? '₼',
   );
-}
-
-class CheckoutSession {
-  final String checkoutUrl;
-  final DateTime expiresAt;
-
-  const CheckoutSession({required this.checkoutUrl, required this.expiresAt});
-  factory CheckoutSession.fromJson(Map<String, dynamic> json) =>
-      CheckoutSession(
-        checkoutUrl: json['checkoutUrl']?.toString() ?? '',
-        expiresAt:
-            DateTime.tryParse(json['expiresAt']?.toString() ?? '') ??
-            DateTime.now(),
-      );
 }
 
 class ShopOrder {

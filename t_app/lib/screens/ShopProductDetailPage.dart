@@ -50,6 +50,17 @@ class ShopProductDetailPage extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: product.primaryImage,
                       fit: BoxFit.contain,
+                      placeholder: (_, __) => const ColoredBox(
+                        color: Color(0xFFF4F6F3),
+                      ),
+                      errorWidget: (_, __, ___) => const ColoredBox(
+                        color: Color(0xFFF4F6F3),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 90,
+                          color: Color(0xFF69736C),
+                        ),
+                      ),
                     ),
             ),
           ),
@@ -61,7 +72,7 @@ class ShopProductDetailPage extends StatelessWidget {
                   Text(
                     product.brand.toUpperCase(),
                     style: const TextStyle(
-                      color: Color(0xFF59BE3F),
+                      color: Color(0xFF2F7623),
                       fontWeight: FontWeight.w900,
                       letterSpacing: .8,
                     ),
@@ -165,7 +176,7 @@ class ShopProductDetailPage extends StatelessWidget {
                 product.inStock ? 'Səbətə əlavə et' : 'Hazırda mövcud deyil',
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF59BE3F),
+                backgroundColor: const Color(0xFF2F7623),
               ),
             ),
           ),

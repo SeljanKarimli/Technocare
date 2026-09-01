@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../repositories/auth_repository.dart';
+import '../core/form_validators.dart';
 import 'LoginScreen.dart';
 
 class VerificationPage extends StatefulWidget {
@@ -32,14 +33,24 @@ class _VerificationPageState extends State<VerificationPage> {
   }
 
   Future<void> _verifyCode() async {
+    final email = _isNewRegistration
+        ? widget.email
+        : _emailController.text;
+    final emailError = FormValidators.email(email);
+    if (emailError != null) {
+      setState(() => _errorMessage = emailError);
+      return;
+    }
+    if (_codeController.text.trim().isEmpty) {
+      setState(() => _errorMessage = 'Doğrulama kodunu daxil edin.');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    final String emailToVerify = _isNewRegistration
-        ? widget.email!
-        : _emailController.text.toLowerCase(); // Convert to lowercase for consistency
+    final String emailToVerify = email!.trim().toLowerCase();
 
     try {
       final repository = context.read<AuthRepository>();
@@ -48,7 +59,7 @@ class _VerificationPageState extends State<VerificationPage> {
       if (response['message'] != null) {
         // Verification successful
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Email verified! You can now log in.')),
+          const SnackBar(content: Text('E-poçt təsdiqləndi. İndi daxil ola bilərsiniz.')),
         );
         Navigator.pushReplacement(
           context,
@@ -56,14 +67,14 @@ class _VerificationPageState extends State<VerificationPage> {
         );
       } else {
         setState(() {
-          _errorMessage = response['message'] ?? 'Invalid code.';
+          _errorMessage = response['message'] ?? 'Kod düzgün deyil.';
         });
       }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString().contains('Exception') 
           ? e.toString().substring(11) // Extract the message from the exception
-          : 'An unexpected error occurred.';
+          : 'Gözlənilməz xəta baş verdi.';
       });
     } finally {
       setState(() {
@@ -82,23 +93,23 @@ class _VerificationPageState extends State<VerificationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Verify Email')),
+      appBar: AppBar(title: const Text('E-poçtu təsdiqlə')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_isNewRegistration)
-              Text('A verification code was sent to ${widget.email}.')
+              Text('Doğrulama kodu ${widget.email} ünvanına göndərildi.')
             else
-              const Text('Please enter your email and the verification code.'),
+              const Text('E-poçt ünvanınızı və doğrulama kodunu daxil edin.'),
             const SizedBox(height: 24),
             // Conditionally show the email text field
             if (!_isNewRegistration)
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
-                  labelText: 'Email',
+                  labelText: 'E-poçt',
                   prefixIcon: Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
@@ -107,7 +118,7 @@ class _VerificationPageState extends State<VerificationPage> {
             TextField(
               controller: _codeController,
               decoration: const InputDecoration(
-                labelText: 'Verification Code',
+                labelText: 'Doğrulama kodu',
                 prefixIcon: Icon(Icons.verified),
               ),
               keyboardType: TextInputType.number,
@@ -121,7 +132,7 @@ class _VerificationPageState extends State<VerificationPage> {
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
                     onPressed: _verifyCode,
-                    child: const Text('Verify'),
+                    child: const Text('Təsdiqlə'),
                   ),
           ],
         ),

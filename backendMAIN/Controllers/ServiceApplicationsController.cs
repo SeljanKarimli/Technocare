@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Controllers;
 
@@ -25,10 +26,15 @@ public class ServiceApplicationsController : ControllerBase
 
     [HttpPost] // POST /api/serviceapplications
     [AllowAnonymous]
+    [EnableRateLimiting("applications")]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(ServiceApplication))] // Explicitly define success response type
     [ProducesResponseType(StatusCodes.Status400BadRequest)] // Explicitly define bad request response type
     public async Task<IActionResult> SubmitApplication([FromBody] CreateServiceApplicationRequest request)
     {
+        if (!string.IsNullOrWhiteSpace(request.Website))
+        {
+            return Accepted(new { message = "Müraciət qəbul edildi." });
+        }
         // Model validation is crucial for good API design
         if (!ModelState.IsValid)
         {

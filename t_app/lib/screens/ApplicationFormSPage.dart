@@ -2,8 +2,8 @@
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
+import '../core/form_validators.dart';
 import '../providers/auth_provider.dart';
-import '../navigation.dart'; 
 
 class ApplicationFormSPage extends StatefulWidget {
   final String initialSelectedField;
@@ -78,15 +78,6 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Zəhmət olmasa email daxil edin';
-    final v = value.trim();
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
-      return 'Keçərli bir email ünvanı daxil edin';
-    }
-    return null;
-  }
-
   Future<bool> _submitForm() async {
     if (!_formKey.currentState!.validate()) return false;
 
@@ -141,22 +132,25 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               const SizedBox(height: 20),
               TextFormField(
                 controller: _nameController,
+                maxLength: 100,
                 decoration: const InputDecoration(labelText: 'Adınız Soyadınız', prefixIcon: Icon(Icons.person)),
-                validator: (v) => v!.isEmpty ? 'Boş qoymayın' : null,
+                validator: FormValidators.name,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _mobileController,
+                maxLength: 24,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(labelText: 'Mobil nömrə', prefixIcon: Icon(Icons.phone)),
-                validator: (v) => v!.isEmpty ? 'Boş qoymayın' : null,
+                validator: FormValidators.phone,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
-                validator: _validateEmail,
+                maxLength: 254,
+                validator: FormValidators.email,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -182,6 +176,7 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _messageController,
+                maxLength: 2000,
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: 'Məlumat', prefixIcon: Icon(Icons.edit)),
               ),
@@ -189,10 +184,10 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _isLoading ? null : () async {
                     if (await _submitForm()) {
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+                      if (context.mounted) Navigator.pop(context);
                     }
                   },
                   child: _isLoading ? const CircularProgressIndicator() : const Text('Göndər'),

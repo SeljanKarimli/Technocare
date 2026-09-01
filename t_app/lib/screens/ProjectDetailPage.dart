@@ -33,7 +33,7 @@ class ProjectDetailPage extends StatelessWidget {
                   child: Icon(
                     Icons.factory_outlined,
                     size: 64,
-                    color: Color(0xFF3E8F2E),
+                    color: Color(0xFF2F7623),
                   ),
                 ),
               ),

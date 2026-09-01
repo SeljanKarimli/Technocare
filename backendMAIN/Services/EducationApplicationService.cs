@@ -22,11 +22,11 @@ public class EducationApplicationService
     {
         var educationapplication = new EducationApplication
         {
-            ApplicantName = request.Name,
-            ApplicantEmail = request.Email,
-            ApplicantPhone = request.Phone,
-            AppliedFor = request.AppliedFor,
-            Message = request.Message,
+            ApplicantName = request.Name.Trim(),
+            ApplicantEmail = UserService.NormalizeEmail(request.Email),
+            ApplicantPhone = request.Phone.Trim(),
+            AppliedFor = request.AppliedFor.Trim(),
+            Message = request.Message?.Trim(),
             ApplicationDate = DateTime.UtcNow,
             Status = "Pending" // Initial status
         };

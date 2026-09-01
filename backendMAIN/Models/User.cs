@@ -2,6 +2,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
+using System.ComponentModel.DataAnnotations;
 using System;
 using System.Collections.Generic; // Ensure this is included for List<T> if needed elsewhere in User model
 
@@ -19,6 +20,10 @@ namespace backend.Models
 
         [BsonElement("email")]
         public string Email { get; set; } = null!;
+
+        [BsonElement("normalizedEmail")]
+        [BsonIgnoreIfNull]
+        public string? NormalizedEmail { get; set; }
 
         [BsonElement("passwordHash")] // Storing hashed password
         public string PasswordHash { get; set; } = null!;
@@ -66,23 +71,37 @@ namespace backend.Models
 // DTO for user registration
 public class RegisterRequest
 {
+    [Required, StringLength(100, MinimumLength = 2)]
     public string Name { get; set; } = null!;
+
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
+
+    [Required, StringLength(64, MinimumLength = 10)]
     public string Password { get; set; } = null!;
+
+    [Required, StringLength(32, MinimumLength = 7)]
+    [RegularExpression(@"^(?=(?:\D*\d){7,15}\D*$)[0-9+()\-\s]+$", ErrorMessage = "Telefon nömrəsinin formatı yanlışdır.")]
     public string Phone { get; set; } = null!;
 }
 
 // DTO for user login
 public class LoginRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
+
+    [Required, StringLength(64, MinimumLength = 1)]
     public string Password { get; set; } = null!;
 }
 
 // DTO for email verification request
 public class VerifyEmailRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
+
+    [Required, StringLength(128, MinimumLength = 6)]
     public string Token { get; set; } = null!;
 }
 
@@ -90,22 +109,30 @@ public class VerifyEmailRequest
 // password request
 public class ForgotPasswordRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
 }
 // DTO for making admin request
 public class MakeAdminRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
 }
 // DTO for reset password request
 public class ResetPasswordRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
+
+    [Required, StringLength(128, MinimumLength = 16)]
     public string Token { get; set; } = null!;
+
+    [Required, StringLength(64, MinimumLength = 10)]
     public string NewPassword { get; set; } = null!;
 }
 public class ResendVerificationRequest
 {
+    [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
 }
 

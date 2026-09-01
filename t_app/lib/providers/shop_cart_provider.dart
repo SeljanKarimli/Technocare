@@ -7,6 +7,7 @@ class ShopCartProvider extends ChangeNotifier {
   final ShopRepository repository;
   ShopCart _cart = const ShopCart.empty();
   bool _loading = false;
+  bool _usingStalePrices = false;
   String? _error;
 
   ShopCartProvider(this.repository);
@@ -14,8 +15,13 @@ class ShopCartProvider extends ChangeNotifier {
   ShopCart get cart => _cart;
   bool get loading => _loading;
   String? get error => _error;
+  bool get usingStalePrices => _usingStalePrices;
 
-  Future<void> load() => _run(() => repository.getCart());
+  Future<void> load() async {
+    await _run(() => repository.getCart());
+    _usingStalePrices = repository.lastCartRefreshUsedStaleData;
+    notifyListeners();
+  }
 
   Future<void> add(ShopProduct product, {int quantity = 1}) => _run(
     () => repository.addToCart(

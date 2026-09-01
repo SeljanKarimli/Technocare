@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -42,14 +43,54 @@ class _ShopCartPageState extends State<ShopCartPage> {
         final names = unavailable.map((item) => item.product.name).join(', ');
         throw StateError('Bu məhsullar hazırda mövcud deyil: $names');
       }
-      final uri = await context.read<WhatsAppOrderService>().createOrderUri(
-        cart,
-      );
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened) {
-        throw StateError(
-          'WhatsApp açılmadı. Cihazda WhatsApp və ya brauzer bağlantısını yoxlayın.',
+      final stale = cartProvider.usingStalePrices;
+      if (stale) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Qiymət yenilənə bilmədi'),
+            content: const Text(
+              'Hazırda canlı qiymət və stok yoxlanılmadı. Sifariş mətnində yekun qiymətin Technocare nümayəndəsi tərəfindən təsdiqlənəcəyi qeyd olunacaq.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Ləğv et'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Davam et'),
+              ),
+            ],
+          ),
         );
+        if (proceed != true || !mounted) return;
+      }
+      final service = context.read<WhatsAppOrderService>();
+      final uri = await service.createOrderUri(
+        cart,
+        pricesRequireConfirmation: stale,
+      );
+      var opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) {
+        opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+      if (!opened) {
+        final phone = await service.resolveTechnocarePhone();
+        final message = service.buildOrderMessage(
+          cart,
+          pricesRequireConfirmation: stale,
+        );
+        await Clipboard.setData(ClipboardData(text: '+$phone\n\n$message'));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'WhatsApp açılmadı. Nömrə və sifariş mətni kopyalandı.',
+            ),
+          ),
+        );
+        return;
       }
       if (!mounted) {
         return;
@@ -178,7 +219,7 @@ class _ShopCartPageState extends State<ShopCartPage> {
                           : const Icon(Icons.chat_outlined),
                       label: const Text('WhatsApp ilə sifariş et'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF25D366),
+                        backgroundColor: const Color(0xFF087A32),
                       ),
                     ),
                   ),
@@ -219,6 +260,13 @@ class _CartLine extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: item.product.primaryImage,
                       fit: BoxFit.contain,
+                      placeholder: (_, __) => const ColoredBox(
+                        color: Color(0xFFF4F6F3),
+                      ),
+                      errorWidget: (_, __, ___) => const ColoredBox(
+                        color: Color(0xFFF4F6F3),
+                        child: Icon(Icons.inventory_2_outlined),
+                      ),
                     ),
             ),
           ),
@@ -275,6 +323,7 @@ class _CartLine extends StatelessWidget {
                     ),
                     const Spacer(),
                     IconButton(
+                      tooltip: 'Səbətdən sil',
                       onPressed: () => provider.remove(item.productId),
                       icon: const Icon(
                         Icons.delete_outline_rounded,
@@ -298,8 +347,9 @@ class _QuantityButton extends StatelessWidget {
   const _QuantityButton({required this.icon, this.onPressed});
   @override
   Widget build(BuildContext context) => SizedBox.square(
-    dimension: 34,
+    dimension: 44,
     child: IconButton.outlined(
+      tooltip: icon == Icons.add ? 'Miqdarı artır' : 'Miqdarı azalt',
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       icon: Icon(icon, size: 17),
@@ -325,7 +375,7 @@ class _CartMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 70, color: const Color(0xFF59BE3F)),
+          Icon(icon, size: 70, color: const Color(0xFF2F7623)),
           const SizedBox(height: 18),
           Text(
             title,

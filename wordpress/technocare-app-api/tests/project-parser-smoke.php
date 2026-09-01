@@ -61,4 +61,12 @@ $assert($items[0]['imageUrl'] === 'https://technocare.az/wp-content/uploads/proj
 $assert($items[1]['url'] === 'https://technocare.az/top-level-project-two', 'Top-level project URL was rejected.');
 $assert($items[1]['imageUrl'] === 'https://technocare.az/wp-content/uploads/project-two.jpg', 'Protocol-relative image URL was not normalized.');
 
+$gallery_fixture = file_get_contents(__DIR__ . '/fixtures/projects-page.html');
+$gallery_items = $method->invoke(null, $gallery_fixture, new WP_Post());
+$assert(count($gallery_items) === 26, 'Expected all 26 project cards from the gallery fixture.');
+$assert(
+    count(array_filter($gallery_items, static fn(array $item): bool => filter_var($item['imageUrl'] ?? '', FILTER_VALIDATE_URL) !== false)) === 26,
+    'Every project must have a valid primary image URL.'
+);
+
 fwrite(STDOUT, "Project parser smoke test passed.\n");

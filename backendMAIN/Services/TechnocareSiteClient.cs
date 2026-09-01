@@ -11,13 +11,15 @@ namespace backend.Services;
 public interface ITechnocareSiteClient
 {
     Task<HomeContentResponse> GetHomeAsync(CancellationToken cancellationToken);
-    Task<PagedSiteProjectsResponse> GetProjectsAsync(int page, int pageSize, CancellationToken cancellationToken);
+    Task<PagedSiteProjectsResponse> GetProjectsAsync(string query, int page, int pageSize, CancellationToken cancellationToken);
     Task<SiteContentCollectionResponse> GetServicesAsync(CancellationToken cancellationToken);
     Task<SiteContentCollectionResponse> GetEducationAsync(CancellationToken cancellationToken);
     Task<PagedShopProductsResponse> GetProductsAsync(string queryString, CancellationToken cancellationToken);
-    Task<ShopProductDto> GetProductAsync(long productId, CancellationToken cancellationToken);
+    Task<ShopProductDto> GetProductAsync(long productId, CancellationToken cancellationToken, bool forceRefresh = false);
     Task<ShopTaxonomyResponse> GetCategoriesAsync(CancellationToken cancellationToken);
     Task<ShopTaxonomyResponse> GetBrandsAsync(CancellationToken cancellationToken);
+    Task<ShopSuggestionsResponse> GetSuggestionsAsync(string query, int limit, CancellationToken cancellationToken);
+    Task<bool> CheckHealthAsync(CancellationToken cancellationToken);
     Task<CheckoutSessionResponse> CreateCheckoutSessionAsync(string userId, string email, IEnumerable<ShopCartItem> items, CancellationToken cancellationToken);
     Task<PagedShopOrdersResponse> GetOrdersAsync(string userId, int page, CancellationToken cancellationToken);
 }
@@ -49,12 +51,13 @@ public sealed class TechnocareSiteClient : ITechnocareSiteClient
     public Task<HomeContentResponse> GetHomeAsync(CancellationToken cancellationToken) =>
         GetCachedAsync<HomeContentResponse>("home", "wp-json/technocare-app/v1/home", cancellationToken);
 
-    public Task<PagedSiteProjectsResponse> GetProjectsAsync(int page, int pageSize, CancellationToken cancellationToken)
+    public Task<PagedSiteProjectsResponse> GetProjectsAsync(string query, int page, int pageSize, CancellationToken cancellationToken)
     {
         var safePage = Math.Max(1, page);
         var safePageSize = Math.Clamp(pageSize, 1, 30);
-        var query = $"?page={safePage}&pageSize={safePageSize}";
-        return GetCachedAsync<PagedSiteProjectsResponse>("projects:" + query, "wp-json/technocare-app/v1/projects" + query, cancellationToken);
+        var safeQuery = Uri.EscapeDataString(query.Trim());
+        var queryString = $"?q={safeQuery}&page={safePage}&pageSize={safePageSize}";
+        return GetCachedAsync<PagedSiteProjectsResponse>("projects:" + queryString, "wp-json/technocare-app/v1/projects" + queryString, cancellationToken);
     }
 
     public Task<SiteContentCollectionResponse> GetServicesAsync(CancellationToken cancellationToken) =>
@@ -66,14 +69,38 @@ public sealed class TechnocareSiteClient : ITechnocareSiteClient
     public Task<PagedShopProductsResponse> GetProductsAsync(string queryString, CancellationToken cancellationToken) =>
         GetCachedAsync<PagedShopProductsResponse>("products:" + queryString, "wp-json/technocare-app/v1/products" + queryString, cancellationToken);
 
-    public Task<ShopProductDto> GetProductAsync(long productId, CancellationToken cancellationToken) =>
-        GetCachedAsync<ShopProductDto>($"product:{productId}", $"wp-json/technocare-app/v1/products/{productId}", cancellationToken);
+    public Task<ShopProductDto> GetProductAsync(
+        long productId,
+        CancellationToken cancellationToken,
+        bool forceRefresh = false) => forceRefresh
+            ? GetUncachedAsync<ShopProductDto>(
+                $"wp-json/technocare-app/v1/products/{productId}?fresh={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}",
+                cancellationToken)
+            : GetCachedAsync<ShopProductDto>($"product:{productId}", $"wp-json/technocare-app/v1/products/{productId}", cancellationToken);
 
     public Task<ShopTaxonomyResponse> GetCategoriesAsync(CancellationToken cancellationToken) =>
         GetCachedAsync<ShopTaxonomyResponse>("categories", "wp-json/technocare-app/v1/categories", cancellationToken);
 
     public Task<ShopTaxonomyResponse> GetBrandsAsync(CancellationToken cancellationToken) =>
         GetCachedAsync<ShopTaxonomyResponse>("brands", "wp-json/technocare-app/v1/brands", cancellationToken);
+
+    public Task<ShopSuggestionsResponse> GetSuggestionsAsync(string query, int limit, CancellationToken cancellationToken)
+    {
+        var safeQuery = Uri.EscapeDataString(query.Trim());
+        var safeLimit = Math.Clamp(limit, 1, 10);
+        var relativeUrl = $"wp-json/technocare-app/v1/suggestions?q={safeQuery}&limit={safeLimit}";
+        return GetCachedAsync<ShopSuggestionsResponse>($"suggestions:{safeQuery}:{safeLimit}", relativeUrl, cancellationToken);
+    }
+
+    public async Task<bool> CheckHealthAsync(CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "wp-json/technocare-app/v1/categories");
+        using var response = await _httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        return response.IsSuccessStatusCode;
+    }
 
     public Task<CheckoutSessionResponse> CreateCheckoutSessionAsync(
         string userId,
@@ -146,6 +173,18 @@ public sealed class TechnocareSiteClient : ITechnocareSiteClient
             _logger.LogWarning("Technocare website request failed for {RelativeUrl}: {ExceptionType}", relativeUrl, exception.GetType().Name);
             throw new TechnocareSiteException(502, "The Technocare website is temporarily unavailable.");
         }
+    }
+
+    private async Task<T> GetUncachedAsync<T>(string relativeUrl, CancellationToken cancellationToken)
+    {
+        using var response = await SendGetWithRetryAsync<T>(relativeUrl, null, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new TechnocareSiteException((int)response.StatusCode, SafeMessage(response.StatusCode));
+        }
+        return JsonSerializer.Deserialize<T>(body, JsonOptions)
+            ?? throw new TechnocareSiteException(502, "The website returned an empty response.");
     }
 
     private async Task<HttpResponseMessage> SendGetWithRetryAsync<T>(

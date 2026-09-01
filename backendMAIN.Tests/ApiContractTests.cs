@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -34,6 +35,58 @@ public sealed class ApiContractTests
         Assert.Contains("\"items\"", json);
         Assert.Contains("\"pageSize\":20", json);
         Assert.Contains("\"sku\":\"6ES7\"", json);
+    }
+
+    [Fact]
+    public void SuggestionEnvelope_UsesExpectedPublicFields()
+    {
+        var payload = new ShopSuggestionsResponse
+        {
+            Items = [new ShopSuggestionDto
+            {
+                Id = 17,
+                Name = "Sənaye sensoru",
+                Sku = "SN-001",
+                Brand = "Siemens",
+                ImageUrl = "https://technocare.az/sensor.webp",
+                Price = 12.5m,
+                InStock = true,
+            }],
+        };
+
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Contains("\"sku\":\"SN-001\"", json);
+        Assert.Contains("\"imageUrl\"", json);
+        Assert.Contains("\"inStock\":true", json);
+    }
+
+    [Theory]
+    [InlineData("  USER@Example.COM ", "user@example.com")]
+    [InlineData("ƏLI@TECHNOCARE.AZ", "əli@technocare.az")]
+    public void EmailNormalization_IsCaseInsensitiveAndTrimmed(string input, string expected)
+    {
+        Assert.Equal(expected, UserService.NormalizeEmail(input));
+    }
+
+    [Fact]
+    public void GuestApplicationValidation_RejectsInvalidPhoneAndOversizedMessage()
+    {
+        var request = new CreateServiceApplicationRequest
+        {
+            Name = "Test User",
+            Email = "test@example.com",
+            Phone = "123",
+            AppliedFor = "Avtomatika Xidməti",
+            Message = new string('x', 2001),
+        };
+        var results = new List<ValidationResult>();
+
+        var valid = Validator.TryValidateObject(request, new ValidationContext(request), results, true);
+
+        Assert.False(valid);
+        Assert.Contains(results, result => result.MemberNames.Contains(nameof(request.Phone)));
+        Assert.Contains(results, result => result.MemberNames.Contains(nameof(request.Message)));
     }
 
     [Theory]

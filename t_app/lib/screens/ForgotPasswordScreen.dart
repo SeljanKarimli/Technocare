@@ -2,6 +2,7 @@
 import 'package:provider/provider.dart';
 
 import '../navigation.dart';
+import '../core/form_validators.dart';
 import '../repositories/auth_repository.dart';
 
 
@@ -47,7 +48,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         );
       } else {
         setState(() {
-          _errorMessage = (resp['message'] as String?) ?? 'Failed to send reset code.';
+          _errorMessage = (resp['message'] as String?) ?? 'Sıfırlama kodunu göndərmək mümkün olmadı.';
         });
       }
     } catch (e) {
@@ -69,13 +70,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Forgot Password')),
+      appBar: AppBar(title: const Text('Şifrəni bərpa et')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             const Text(
-              'Enter your email to receive a reset code.',
+              'Sıfırlama kodunu almaq üçün e-poçt ünvanınızı daxil edin.',
               style: TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
@@ -85,7 +86,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -98,28 +99,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               child: TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
-                  labelText: 'Email',
+                  labelText: 'E-poçt',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Email is required';
-                  final email = val.trim();
-                  final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                  if (!emailRegex.hasMatch(email)) return 'Enter a valid email';
-                  return null;
-                },
+                validator: FormValidators.email,
               ),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: ElevatedButton(
+              child: FilledButton(
                 onPressed: _isLoading ? null : _sendResetEmail,
                 child: _isLoading
                     ? const CircularProgressIndicator()
-                    : const Text('Send Reset Code'),
+                    : const Text('Sıfırlama kodunu göndər'),
               ),
             ),
           ],

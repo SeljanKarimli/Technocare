@@ -13,8 +13,12 @@ class ShopRepository {
   static const _homeCacheTimeKey = 'live_home.cachedAt';
   static const _recentSearchesKey = 'shop.recentSearches';
   static const _guestCartKey = 'shop.guestCart.v1';
+  static const _productPageCachePrefix = 'shop.products.v1.';
+  static const _productDetailCachePrefix = 'shop.product.v1.';
   final ApiClient _api;
   Future<void> _cartQueue = Future<void>.value();
+  bool lastCartRefreshUsedStaleData = false;
+  bool _lastProductRequestUsedStaleData = false;
 
   ShopRepository(this._api);
 
@@ -29,7 +33,10 @@ class ShopRepository {
         cachedAt != null &&
         DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
       return HomeContent.fromJson(
-        Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+        {
+          ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+          '_cachedAt': cachedAt.toIso8601String(),
+        },
       );
     }
 
@@ -46,7 +53,11 @@ class ShopRepository {
     } catch (_) {
       if (cachedJson != null) {
         return HomeContent.fromJson(
-          Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+          {
+            ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+            '_isStale': true,
+            if (cachedAt != null) '_cachedAt': cachedAt.toIso8601String(),
+          },
         );
       }
       rethrow;
@@ -64,28 +75,105 @@ class ShopRepository {
     double? maxPrice,
     String sort = 'relevance',
     Future<void>? abortTrigger,
+    bool forceRefresh = false,
   }) async {
-    final data = await _api.get(
-      'v1/shop/products',
-      query: {
-        'q': query.trim(),
-        'page': page,
-        'pageSize': pageSize,
-        if (categoryId != null) 'category': categoryId,
-        if (brand != null && brand.isNotEmpty) 'brand': brand,
-        if (inStock) 'inStock': true,
-        if (minPrice != null) 'minPrice': minPrice,
-        if (maxPrice != null) 'maxPrice': maxPrice,
-        'sort': sort,
-      },
-      abortTrigger: abortTrigger,
-    );
-    return ProductPage.fromJson(Map<String, dynamic>.from(data as Map));
+    final parameters = <String, dynamic>{
+      'q': query.trim(),
+      'page': page,
+      'pageSize': pageSize,
+      if (categoryId != null) 'category': categoryId,
+      if (brand != null && brand.isNotEmpty) 'brand': brand,
+      if (inStock) 'inStock': true,
+      if (minPrice != null) 'minPrice': minPrice,
+      if (maxPrice != null) 'maxPrice': maxPrice,
+      'sort': sort,
+    };
+    final preferences = await SharedPreferences.getInstance();
+    final key = _cacheKey(_productPageCachePrefix, parameters);
+    final cached = _decodeCache(preferences.getString(key));
+    if (!forceRefresh &&
+        cached != null &&
+        DateTime.now().difference(cached.$1) < ApiConfig.contentFreshness) {
+      return ProductPage.fromJson({
+        ...cached.$2,
+        '_cachedAt': cached.$1.toIso8601String(),
+      });
+    }
+
+    try {
+      final data = Map<String, dynamic>.from(
+        await _api.get(
+              'v1/shop/products',
+              query: parameters,
+              abortTrigger: abortTrigger,
+            )
+            as Map,
+      );
+      final cachedAt = DateTime.now().toUtc();
+      await _writeCache(preferences, key, cachedAt, data);
+      return ProductPage.fromJson({
+        ...data,
+        '_cachedAt': cachedAt.toIso8601String(),
+      });
+    } catch (_) {
+      if (cached == null) rethrow;
+      return ProductPage.fromJson({
+        ...cached.$2,
+        '_isStale': true,
+        '_cachedAt': cached.$1.toIso8601String(),
+      });
+    }
   }
 
-  Future<ShopProduct> getProduct(int productId) async {
-    final data = await _api.get('v1/shop/products/$productId');
-    return ShopProduct.fromJson(Map<String, dynamic>.from(data as Map));
+  Future<ShopProduct> getProduct(
+    int productId, {
+    bool forceRefresh = false,
+  }) async {
+    _lastProductRequestUsedStaleData = false;
+    final preferences = await SharedPreferences.getInstance();
+    final key = '$_productDetailCachePrefix$productId';
+    final cached = _decodeCache(preferences.getString(key));
+    if (!forceRefresh &&
+        cached != null &&
+        DateTime.now().difference(cached.$1) < ApiConfig.contentFreshness) {
+      return ShopProduct.fromJson(cached.$2);
+    }
+    try {
+      final data = Map<String, dynamic>.from(
+        await _api.get(
+              'v1/shop/products/$productId',
+              query: {if (forceRefresh) 'fresh': true},
+            )
+            as Map,
+      );
+      await _writeCache(preferences, key, DateTime.now().toUtc(), data);
+      return ShopProduct.fromJson(data);
+    } catch (_) {
+      if (cached == null) rethrow;
+      _lastProductRequestUsedStaleData = forceRefresh;
+      return ShopProduct.fromJson(cached.$2);
+    }
+  }
+
+  Future<List<ShopSuggestion>> getSuggestions(
+    String query, {
+    int limit = 5,
+    Future<void>? abortTrigger,
+  }) async {
+    final value = query.trim();
+    if (value.length < 2) return const [];
+    final data = Map<String, dynamic>.from(
+      await _api.get(
+            'v1/shop/suggestions',
+            query: {'q': value, 'limit': limit.clamp(1, 10)},
+            abortTrigger: abortTrigger,
+          )
+          as Map,
+    );
+    return (data['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => ShopSuggestion.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false);
   }
 
   Future<List<ShopTaxonomy>> getCategories() async {
@@ -108,12 +196,17 @@ class ShopRepository {
   Future<ShopCart> getCart() => _withCartLock(() async {
     final stored = await _readGuestCartItems();
     final refreshed = <ShopCartItem>[];
+    lastCartRefreshUsedStaleData = false;
     for (final item in stored) {
       ShopProduct product = item.product;
       try {
-        product = await getProduct(item.productId);
+        product = await getProduct(item.productId, forceRefresh: true);
+        if (_lastProductRequestUsedStaleData) {
+          lastCartRefreshUsedStaleData = true;
+        }
       } catch (_) {
         // Retain the last known website snapshot while offline.
+        lastCartRefreshUsedStaleData = true;
       }
       refreshed.add(_cartItem(product, item.quantity));
     }
@@ -191,14 +284,6 @@ class ShopRepository {
     await preferences.remove(_guestCartKey);
   });
 
-  Future<CheckoutSession> createCheckoutSession() async {
-    final data = await _api.post(
-      'v1/shop/checkout-session',
-      authenticated: true,
-    );
-    return CheckoutSession.fromJson(Map<String, dynamic>.from(data as Map));
-  }
-
   Future<List<ShopOrder>> getOrders({int page = 1}) async {
     final data = Map<String, dynamic>.from(
       await _api.get(
@@ -242,6 +327,36 @@ class ShopRepository {
           .whereType<Map>()
           .map((item) => ShopTaxonomy.fromJson(Map<String, dynamic>.from(item)))
           .toList();
+
+  String _cacheKey(String prefix, Map<String, dynamic> parameters) {
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(parameters)));
+    return '$prefix$encoded';
+  }
+
+  (DateTime, Map<String, dynamic>)? _decodeCache(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    try {
+      final wrapper = Map<String, dynamic>.from(jsonDecode(payload) as Map);
+      return (
+        DateTime.parse(wrapper['cachedAt'].toString()),
+        Map<String, dynamic>.from(wrapper['data'] as Map),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeCache(
+    SharedPreferences preferences,
+    String key,
+    DateTime cachedAt,
+    Map<String, dynamic> data,
+  ) async {
+    await preferences.setString(
+      key,
+      jsonEncode({'cachedAt': cachedAt.toIso8601String(), 'data': data}),
+    );
+  }
 
   Future<T> _withCartLock<T>(Future<T> Function() operation) {
     final result = _cartQueue.then((_) => operation());

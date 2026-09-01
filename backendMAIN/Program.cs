@@ -7,7 +7,9 @@ using backend;
 using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Bson.Serialization;
@@ -23,12 +25,15 @@ builder.Services.AddOptions<JwtSettings>()
     .Validate(settings => !string.IsNullOrWhiteSpace(settings.Secret) && settings.Secret.Length >= 32, "JWT secret must be at least 32 characters.")
     .ValidateOnStart();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<AdminBootstrapOptions>(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName));
 builder.Services.AddOptions<TechnocareSiteOptions>()
     .Bind(builder.Configuration.GetSection(TechnocareSiteOptions.SectionName))
     .Validate(settings => Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps, "TechnocareSite:BaseUrl must be HTTPS.")
     .ValidateOnStart();
 
 builder.Services.AddSingleton<EmailService>();
+builder.Services.AddSingleton<EmailOutboxService>();
+builder.Services.AddHostedService<EmailOutboxService>(serviceProvider => serviceProvider.GetRequiredService<EmailOutboxService>());
 builder.Services.AddSingleton<UserService>();
 builder.Services.AddSingleton<ServiceApplicationService>();
 builder.Services.AddSingleton<ProductService>();
@@ -42,6 +47,8 @@ builder.Services.AddSingleton<NotificationService>();
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<ShopCartService>();
 builder.Services.AddHostedService<ShopCartIndexInitializer>();
+builder.Services.AddHostedService<UserIndexInitializer>();
+builder.Services.AddHostedService<AdminRoleBootstrapper>();
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<ITechnocareSiteClient, TechnocareSiteClient>((serviceProvider, client) =>
@@ -87,8 +94,8 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddResponseCaching();
 builder.Services.AddHealthChecks()
-    .AddCheck<TechnocareSiteHealthCheck>("technocare-site")
-    .AddCheck<MongoDbHealthCheck>("mongodb");
+    .AddCheck<TechnocareSiteHealthCheck>("technocare-site", tags: ["ready"])
+    .AddCheck<MongoDbHealthCheck>("mongodb", tags: ["ready"]);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -102,6 +109,33 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true,
             }));
+    options.AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        "auth:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("applications", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        "applications:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("search", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        "search:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -157,7 +191,28 @@ app.UseResponseCaching();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResultStatusCodes =
+    {
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
+    },
+});
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResultStatusCodes =
+    {
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable,
+    },
+});
 app.MapFallbackToFile("index.html");
 app.Run();
 

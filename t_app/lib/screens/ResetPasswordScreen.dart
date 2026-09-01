@@ -2,6 +2,7 @@
 import 'package:provider/provider.dart';
 
 import '../navigation.dart';
+import '../core/form_validators.dart';
 import '../repositories/auth_repository.dart';
 
 
@@ -45,7 +46,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (response['message'] != null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset successfully. Please log in.')),
+          const SnackBar(content: Text('Şifrə uğurla yeniləndi. İndi daxil ola bilərsiniz.')),
         );
         Navigator.pushAndRemoveUntil(
           context,
@@ -54,7 +55,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         );
       } else {
         setState(() {
-          _errorMessage = (response['message'] as String?) ?? 'Failed to reset password.';
+          _errorMessage = (response['message'] as String?) ?? 'Şifrəni yeniləmək mümkün olmadı.';
         });
       }
     } catch (e) {
@@ -80,13 +81,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final email = widget.email;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reset Password')),
+      appBar: AppBar(title: const Text('Yeni şifrə')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Text(
-              'A reset code was sent to $email.\nEnter the code and your new password.',
+              'Sıfırlama kodu $email ünvanına göndərildi.\nKodu və yeni şifrənizi daxil edin.',
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
@@ -96,7 +97,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -112,13 +113,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   TextFormField(
                     controller: _codeController,
                     decoration: const InputDecoration(
-                      labelText: 'Reset code',
-                      hintText: 'Enter the code (token) from your email',
+                      labelText: 'Sıfırlama kodu',
+                      hintText: 'E-poçta göndərilmiş kodu daxil edin',
                       border: OutlineInputBorder(),
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Reset code is required';
+                        return 'Sıfırlama kodunu daxil edin.';
                       }
                       return null;
                     },
@@ -129,18 +130,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     controller: _newPasswordController,
                     obscureText: _obscure1,
                     decoration: InputDecoration(
-                      labelText: 'New password',
+                      labelText: 'Yeni şifrə',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
                         onPressed: () => setState(() => _obscure1 = !_obscure1),
                       ),
                     ),
-                    validator: (val) {
-                      if (val == null || val.isEmpty) return 'New password is required';
-                      if (val.length < 6) return 'Password must be at least 6 characters';
-                      return null;
-                    },
+                    validator: FormValidators.password,
                   ),
                   const SizedBox(height: 12),
                   // Confirm Password
@@ -148,7 +145,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     controller: _confirmPasswordController,
                     obscureText: _obscure2,
                     decoration: InputDecoration(
-                      labelText: 'Confirm new password',
+                      labelText: 'Yeni şifrəni təkrarlayın',
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
@@ -156,8 +153,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       ),
                     ),
                     validator: (val) {
-                      if (val == null || val.isEmpty) return 'Please confirm your password';
-                      if (val != _newPasswordController.text) return 'Passwords do not match';
+                      if (val == null || val.isEmpty) return 'Şifrəni təkrar daxil edin.';
+                      if (val != _newPasswordController.text) return 'Şifrələr eyni deyil.';
                       return null;
                     },
                   ),
@@ -165,11 +162,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   SizedBox(
                     width: double.infinity,
                     height: 48,
-                    child: ElevatedButton(
+                    child: FilledButton(
                       onPressed: _isLoading ? null : _resetPassword,
                       child: _isLoading
                           ? const CircularProgressIndicator()
-                          : const Text('Reset Password'),
+                          : const Text('Şifrəni yenilə'),
                     ),
                   ),
                 ],

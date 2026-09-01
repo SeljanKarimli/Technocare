@@ -6,6 +6,8 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Controllers
 {
@@ -14,87 +16,37 @@ namespace backend.Controllers
     public class AdminController : ControllerBase
     {
         private readonly UserService _userService;
-        private readonly TokenService _tokenService;
-        private readonly string _adminEmail;
-        private readonly string _adminPassword;
-
-        public AdminController(UserService userService, IConfiguration configuration, TokenService tokenService)
+        public AdminController(UserService userService)
         {
             _userService = userService;
-            _tokenService = tokenService;
-            _adminEmail = configuration["AdminSettings:Email"]
-                ?? throw new InvalidOperationException("AdminSettings:Email is not configured.");
-            _adminPassword = configuration["AdminSettings:Password"]
-                ?? throw new InvalidOperationException("AdminSettings:Password is not configured.");
         }
 
         [HttpPost("login")]
         [AllowAnonymous]
+        [EnableRateLimiting("auth")]
         public async Task<IActionResult> AdminLogin([FromBody] AdminLoginRequest request)
         {
-            if (!string.Equals(request.Email, _adminEmail, StringComparison.OrdinalIgnoreCase) ||
-                request.Password != _adminPassword)
+            var response = await _userService.LoginAsync(new LoginRequest
             {
-                return Unauthorized(new { message = "Invalid admin credentials" });
+                Email = request.Email,
+                Password = request.Password,
+            });
+            if (response is null || !response.EmailVerified || response.Role != "Admin" || string.IsNullOrWhiteSpace(response.Token))
+            {
+                return Unauthorized(new { message = "Admin məlumatları yanlışdır." });
             }
 
-            // Check if admin user exists in database, if not create it
-            var adminUser = await _userService.GetByEmailAsync(_adminEmail);
-
-            if (adminUser == null)
+            return Ok(new AdminLoginResponse
             {
-                // Create admin user
-                var registerRequest = new RegisterRequest
+                Token = response.Token,
+                User = new AdminUserInfo
                 {
-                    Name = "Admin",
-                    Email = _adminEmail,
-                    Password = _adminPassword,
-                    Phone = "+994500000000"
-                };
-
-                var userResponse = await _userService.RegisterAsync(registerRequest);
-                if (userResponse != null)
-                {
-                    adminUser = await _userService.GetByEmailAsync(_adminEmail);
-                    // Verify email automatically for admin
-                    if (adminUser != null)
-                    {
-                        adminUser.EmailVerified = true;
-                        adminUser.Role = "Admin";
-                        await _userService.UpdateAsync(adminUser);
-                    }
-                }
-            }
-            else
-            {
-                // Ensure existing user has admin role and verified email
-                if (adminUser.Role != "Admin" || !adminUser.EmailVerified)
-                {
-                    adminUser.Role = "Admin";
-                    adminUser.EmailVerified = true;
-                    await _userService.UpdateAsync(adminUser);
-                }
-            }
-
-            // Generate JWT token
-            if (adminUser != null)
-            {
-                var token = _tokenService.GenerateJwtToken(adminUser);
-
-                return Ok(new AdminLoginResponse
-                {
-                    Token = token,
-                    User = new AdminUserInfo
-                    {
-                        Id = adminUser.Id!,
-                        Name = adminUser.Name,
-                        Email = adminUser.Email,
-                        Role = "Admin"
-                    }
-                });
-            }
-
-            return StatusCode(500, new { message = "Failed to create admin session" });
+                    Id = response.Id,
+                    Name = response.Name,
+                    Email = response.Email,
+                    Role = response.Role,
+                },
+            });
         }
 
         [HttpGet("stats")]
@@ -151,7 +103,7 @@ namespace backend.Controllers
             // Prevent removing the last admin
             var allUsers = await _userService.GetAllAsync();
             var adminCount = allUsers.Count(u => u.Role == "Admin");
-            if (adminCount <= 1 && string.Equals(user.Email, _adminEmail, StringComparison.OrdinalIgnoreCase))
+            if (adminCount <= 1 && user.Role == "Admin")
             {
                 return BadRequest(new { message = "Cannot remove the last admin account" });
             }
@@ -166,7 +118,10 @@ namespace backend.Controllers
     // DTOs
     public class AdminLoginRequest
     {
+        [Required, EmailAddress, StringLength(254)]
         public string Email { get; set; } = null!;
+
+        [Required, StringLength(64, MinimumLength = 1)]
         public string Password { get; set; } = null!;
     }
 

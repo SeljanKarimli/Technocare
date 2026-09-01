@@ -15,12 +15,13 @@ public sealed class TechnocareSiteHealthCheck : IHealthCheck
     {
         try
         {
-            await _siteClient.GetCategoriesAsync(cancellationToken);
-            return HealthCheckResult.Healthy("technocare.az API is reachable.");
+            return await _siteClient.CheckHealthAsync(cancellationToken)
+                ? HealthCheckResult.Healthy("technocare.az API is reachable.")
+                : HealthCheckResult.Unhealthy("technocare.az API returned an unsuccessful status.");
         }
         catch (Exception exception)
         {
-            return HealthCheckResult.Degraded("technocare.az API is unavailable; stale content may be served.", exception);
+            return HealthCheckResult.Unhealthy("technocare.az API is unavailable; stale content may be served.", exception);
         }
     }
 }

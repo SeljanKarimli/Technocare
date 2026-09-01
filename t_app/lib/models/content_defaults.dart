@@ -103,12 +103,18 @@ class RequiredContentCatalog {
   ) => SiteContentItem(
     id: remote.id == 0 ? fallback.id : remote.id,
     title: fallback.title,
-    summary: remote.summary.isEmpty ? fallback.summary : remote.summary,
-    body: remote.body.isEmpty ? fallback.body : remote.body,
+    summary: _richer(fallback.summary, remote.summary),
+    body: _richer(fallback.body, remote.body),
     imageUrl: remote.imageUrl.isEmpty ? fallback.imageUrl : remote.imageUrl,
     images: remote.images.isEmpty ? fallback.images : remote.images,
     url: remote.url.isEmpty ? fallback.url : remote.url,
   );
+
+  static String _richer(String fallback, String remote) {
+    final fallbackLength = fallback.replaceAll(RegExp(r'\s+'), ' ').trim().length;
+    final remoteLength = remote.replaceAll(RegExp(r'\s+'), ' ').trim().length;
+    return remoteLength > fallbackLength ? remote : fallback;
+  }
 
   static List<SiteContentItem> _requiredItems(String kind) => switch (kind) {
     'services' => _services,

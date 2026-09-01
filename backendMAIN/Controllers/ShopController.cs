@@ -3,6 +3,7 @@ using backend.Models;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Controllers;
 
@@ -21,16 +22,40 @@ public sealed class ShopController : ControllerBase
 
     [HttpGet("products")]
     [AllowAnonymous]
+    [EnableRateLimiting("search")]
     public async Task<ActionResult<PagedShopProductsResponse>> Products(CancellationToken cancellationToken)
     {
         return Ok(await _siteClient.GetProductsAsync(Request.QueryString.Value ?? string.Empty, cancellationToken));
     }
 
+    [HttpGet("suggestions")]
+    [AllowAnonymous]
+    [EnableRateLimiting("search")]
+    public async Task<ActionResult<ShopSuggestionsResponse>> Suggestions(
+        [FromQuery] string q,
+        [FromQuery] int limit = 5,
+        CancellationToken cancellationToken = default)
+    {
+        var query = (q ?? string.Empty).Trim();
+        if (query.Length < 2)
+        {
+            return Ok(new ShopSuggestionsResponse());
+        }
+        if (query.Length > 100)
+        {
+            return BadRequest(new { message = "Axtarış sorğusu çox uzundur." });
+        }
+        return Ok(await _siteClient.GetSuggestionsAsync(query, limit, cancellationToken));
+    }
+
     [HttpGet("products/{id:long}")]
     [AllowAnonymous]
-    public async Task<ActionResult<ShopProductDto>> Product(long id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ShopProductDto>> Product(
+        long id,
+        [FromQuery] bool fresh,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _siteClient.GetProductAsync(id, cancellationToken));
+        return Ok(await _siteClient.GetProductAsync(id, cancellationToken, fresh));
     }
 
     [HttpGet("categories")]

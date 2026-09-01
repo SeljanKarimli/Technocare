@@ -2,6 +2,7 @@
 import 'package:provider/provider.dart'; // For state management
 
 import '../core/api_client.dart';
+import '../core/form_validators.dart';
 import '../providers/auth_provider.dart';
 
 // New Application Form Page
@@ -115,52 +116,37 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
               const SizedBox(height: 24),
               TextFormField(
                 controller: _nameController,
+                maxLength: 100,
                 decoration: const InputDecoration(
                   labelText: 'Adınız Soyadınız',
                   hintText: 'Adınızı və soyadınızı daxil edin',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Zəhmət olmasa adınızı və soyadınızı daxil edin';
-                  }
-                  return null;
-                },
+                validator: FormValidators.name,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _mobileController,
+                maxLength: 24,
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
                   labelText: 'Mobil nömrəniz',
                   hintText: 'Mobil nömrənizi daxil edin',
                   prefixIcon: Icon(Icons.phone_outlined),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Zəhmət olmasa mobil nömrənizi daxil edin';
-                  }
-                  return null;
-                },
+                validator: FormValidators.phone,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _emailController,
+                maxLength: 254,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: 'Email ünvanınız',
                   hintText: 'Email ünvanınızı dəxil edin',
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Zəhmət olmasa email ünvanınızı daxil edin';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Keçərli bir email ünvanı daxil edin';
-                  }
-                  return null;
-                },
+                validator: FormValidators.email,
               ),
               const SizedBox(height: 16),
               // Main Service Dropdown
@@ -192,6 +178,7 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _messageController,
+                maxLength: 2000,
                 maxLines: 3,
                 decoration: const InputDecoration(
                   labelText: 'Qısa məlumat (əlavə qeydlər)',
@@ -203,7 +190,7 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
+                child: FilledButton(
                   onPressed: _isLoading ? null : _submitForm,
                   child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Müraciəti göndər'),
                 ),

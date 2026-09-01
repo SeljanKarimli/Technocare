@@ -16,5 +16,6 @@ namespace backend.Models
         public string AddressesCollectionName { get; set; } = null!; // Changed from AdressesCollectionName
         public string NotificationsCollectionName { get; set; } = null!;
         public string ProjectsCollectionName { get; set; } = null!;
+        public string EmailOutboxCollectionName { get; set; } = "email_outbox";
     }
 }

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -48,18 +49,24 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
           );
         }
         return RefreshIndicator(
-          color: const Color(0xFF59BE3F),
+          color: const Color(0xFF2F7623),
           onRefresh: _refresh,
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
-            itemCount: snapshot.data!.sections.length + 1,
+            itemCount:
+                snapshot.data!.sections.length +
+                (snapshot.data!.isStale ? 2 : 1),
             itemBuilder: (context, index) {
-              if (index == snapshot.data!.sections.length) {
+              if (snapshot.data!.isStale && index == 0) {
+                return _HomeOfflineBanner(cachedAt: snapshot.data!.cachedAt);
+              }
+              final sectionIndex = index - (snapshot.data!.isStale ? 1 : 0);
+              if (sectionIndex == snapshot.data!.sections.length) {
                 return const _ContactFooter();
               }
               return _HomeSectionView(
-                section: snapshot.data!.sections[index],
+                section: snapshot.data!.sections[sectionIndex],
                 onOpenShop: widget.onOpenShop,
               );
             },
@@ -114,12 +121,11 @@ class _HeroSection extends StatelessWidget {
             CachedNetworkImage(
               imageUrl: image,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: const Color(0xFFE9EEE7)),
-              errorWidget: (_, __, ___) =>
-                  Container(color: const Color(0xFF101816)),
+              placeholder: (_, __) => const _HeroBackdrop(),
+              errorWidget: (_, __, ___) => const _HeroBackdrop(),
             )
           else
-            Container(color: const Color(0xFF101816)),
+            const _HeroBackdrop(),
           Container(color: Colors.black.withValues(alpha: 0.48)),
           SafeArea(
             bottom: false,
@@ -171,7 +177,7 @@ class _HeroSection extends StatelessWidget {
                     icon: const Icon(Icons.arrow_forward_rounded),
                     label: const Text('Məhsullara bax'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF59BE3F),
+                      backgroundColor: const Color(0xFF2F7623),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 15,
@@ -183,6 +189,53 @@ class _HeroSection extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeroBackdrop extends StatelessWidget {
+  const _HeroBackdrop();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF2F7623), Color(0xFF132E22), Color(0xFF0D171C)],
+      ),
+    ),
+    child: Align(
+      alignment: Alignment.topRight,
+      child: Padding(
+        padding: EdgeInsets.all(28),
+        child: Icon(
+          Icons.precision_manufacturing_outlined,
+          size: 120,
+          color: Color(0x3372CE50),
+        ),
+      ),
+    ),
+  );
+}
+
+class _HomeOfflineBanner extends StatelessWidget {
+  final DateTime? cachedAt;
+  const _HomeOfflineBanner({this.cachedAt});
+
+  @override
+  Widget build(BuildContext context) {
+    final time = cachedAt?.toLocal();
+    final updated = time == null
+        ? ''
+        : ' Son yenilənmə: ${time.day.toString().padLeft(2, '0')}.${time.month.toString().padLeft(2, '0')} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}.';
+    return Container(
+      color: const Color(0xFFFFF4D8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Text(
+        'Offline məzmun göstərilir.$updated',
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -207,6 +260,13 @@ class _AboutSection extends StatelessWidget {
                 height: 220,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                placeholder: (_, __) => const ColoredBox(
+                  color: Color(0xFFEAF0EB),
+                ),
+                errorWidget: (_, __, ___) => const ColoredBox(
+                  color: Color(0xFFEAF0EB),
+                  child: Icon(Icons.image_not_supported_outlined),
+                ),
               ),
             ),
           if (section.metrics.isNotEmpty) ...[
@@ -223,7 +283,7 @@ class _AboutSection extends StatelessWidget {
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF59BE3F),
+                          color: const Color(0xFF2F7623),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -300,7 +360,7 @@ class _CategorySection extends StatelessWidget {
                             ? const Center(
                                 child: Icon(
                                   Icons.precision_manufacturing_outlined,
-                                  color: Color(0xFF59BE3F),
+                                  color: Color(0xFF2F7623),
                                   size: 44,
                                 ),
                               )
@@ -451,7 +511,7 @@ class _CompactProductCard extends StatelessWidget {
                     Text(
                       product.brand.toUpperCase(),
                       style: const TextStyle(
-                        color: Color(0xFF59BE3F),
+                        color: Color(0xFF2F7623),
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
                       ),
@@ -574,7 +634,7 @@ class _QualitySection extends StatelessWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(
-                backgroundColor: const Color(0xFF59BE3F),
+                backgroundColor: const Color(0xFF2F7623),
                 child: Icon(item.$2, color: Colors.white, size: 20),
               ),
               title: Text(
@@ -608,6 +668,13 @@ class _GallerySection extends StatelessWidget {
               imageUrl: section.images[index],
               width: 260,
               fit: BoxFit.cover,
+              placeholder: (_, __) => const ColoredBox(
+                color: Color(0xFFEAF0EB),
+              ),
+              errorWidget: (_, __, ___) => const ColoredBox(
+                color: Color(0xFFEAF0EB),
+                child: Icon(Icons.image_not_supported_outlined),
+              ),
             ),
           ),
         ),
@@ -642,7 +709,7 @@ class _SectionShell extends StatelessWidget {
               Text(
                 section.eyebrow.toUpperCase(),
                 style: const TextStyle(
-                  color: Color(0xFF59BE3F),
+                  color: Color(0xFF2F7623),
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.3,
@@ -735,15 +802,33 @@ class _ContactFooter extends StatelessWidget {
           const SizedBox(height: 22),
           FilledButton.icon(
             onPressed: () async {
-              final uri = await context
-                  .read<WhatsAppOrderService>()
-                  .createChatUri();
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              final service = context.read<WhatsAppOrderService>();
+              final uri = await service.createChatUri();
+              var opened = await launchUrl(
+                uri,
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened) {
+                opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+              }
+              if (!opened && context.mounted) {
+                final phone = await service.resolveTechnocarePhone();
+                await Clipboard.setData(ClipboardData(text: '+$phone'));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'WhatsApp açılmadı. Əlaqə nömrəsi kopyalandı.',
+                      ),
+                    ),
+                  );
+                }
+              }
             },
             icon: const Icon(Icons.chat_outlined),
             label: const Text('WhatsApp ilə yazın'),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF59BE3F),
+              backgroundColor: const Color(0xFF2F7623),
             ),
           ),
         ],
@@ -792,7 +877,7 @@ class _HomeError extends StatelessWidget {
         const Icon(
           Icons.cloud_off_outlined,
           size: 70,
-          color: Color(0xFF59BE3F),
+          color: Color(0xFF2F7623),
         ),
         const SizedBox(height: 18),
         const Text(

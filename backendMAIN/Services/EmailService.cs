@@ -51,8 +51,8 @@ public class EmailService
 
     public async Task SendVerificationCodeEmail(string email, string code)
     {
-        var subject = "Technocare Email Verification";
-        var body = $"Your verification code is: {code}";
+        var subject = "Technocare email təsdiqi";
+        var body = $"<p>Technocare hesabınızı təsdiqləmək üçün kod:</p><p><strong>{code}</strong></p><p>Kod 10 dəqiqə ərzində etibarlıdır.</p>";
         await SendEmailAsync(email, subject, body);
     }
 }

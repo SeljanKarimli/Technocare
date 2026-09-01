@@ -76,6 +76,53 @@ void main() {
     expect(message, contains('SKU: SN-001'));
     expect(message, contains('Miqdar: 2'));
     expect(message, contains('Ümumi məbləğ: ₼25.00'));
+
+    final staleMessage = service.buildOrderMessage(
+      cart,
+      pricesRequireConfirmation: true,
+    );
+    expect(
+      staleMessage,
+      contains('Yekun qiymət Technocare nümayəndəsi tərəfindən təsdiqlənəcək'),
+    );
+  });
+
+  test('shop pages return marked last-known-good data while offline', () async {
+    SharedPreferences.setMockInitialValues({});
+    var online = true;
+    final repository = ShopRepository(
+      ApiClient(
+        session: SecureSession(),
+        baseUrl: 'https://api.technocare.az/api',
+        httpClient: MockClient((_) async {
+          if (!online) return http.Response('{}', 503);
+          return http.Response(
+            jsonEncode({
+              'items': [_productJson(price: 12.5)],
+              'page': 1,
+              'pageSize': 20,
+              'total': 1,
+              'totalPages': 1,
+              'facets': <String, dynamic>{},
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+
+    final live = await repository.getProducts(query: 'SN-001');
+    expect(live.items.single.id, 77);
+    expect(live.isStale, isFalse);
+    online = false;
+    final stale = await repository.getProducts(
+      query: 'SN-001',
+      forceRefresh: true,
+    );
+    expect(stale.items.single.id, 77);
+    expect(stale.isStale, isTrue);
+    expect(stale.cachedAt, isNotNull);
   });
 
   test('Technocare WhatsApp number is extracted from common website links', () {

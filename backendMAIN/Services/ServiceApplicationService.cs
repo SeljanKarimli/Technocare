@@ -22,12 +22,12 @@ public class ServiceApplicationService
     {
         var serviceapplication = new ServiceApplication
         {
-            ApplicantName = request.Name,
-            ApplicantEmail = request.Email,
-            ApplicantPhone = request.Phone,
-            AppliedFor = request.AppliedFor,
-            AppliedSubService = request.AppliedSubService,
-            Message = request.Message,
+            ApplicantName = request.Name.Trim(),
+            ApplicantEmail = UserService.NormalizeEmail(request.Email),
+            ApplicantPhone = request.Phone.Trim(),
+            AppliedFor = request.AppliedFor.Trim(),
+            AppliedSubService = request.AppliedSubService?.Trim(),
+            Message = request.Message?.Trim(),
             ApplicationDate = DateTime.UtcNow,
             Status = "Pending" // Initial status
         };

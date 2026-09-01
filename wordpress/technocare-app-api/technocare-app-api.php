@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Technocare App API
  * Description: Versioned, mobile-friendly content, catalogue and checkout endpoints for the Technocare Flutter app.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires PHP: 8.0
  * Author: Technocare
  */
@@ -17,6 +17,9 @@ final class Technocare_App_API
     private const HOME_PAGE_OPTION = 'technocare_app_home_page_id';
     private const SECTION_CONFIG_OPTION = 'technocare_app_section_config';
     private const SESSION_TTL = 300;
+    private const SEARCH_INDEX_VERSION = '1.0';
+    private const SEARCH_INDEX_VERSION_OPTION = 'technocare_app_search_index_version';
+    private const SEARCH_INDEX_READY_OPTION = 'technocare_app_search_index_ready';
 
     /** @var string[] */
     private const SECTION_TYPES = [
@@ -42,6 +45,11 @@ final class Technocare_App_API
         add_action('woocommerce_checkout_create_order', [self::class, 'attach_app_user_to_order'], 10, 2);
         add_action('woocommerce_thankyou', [self::class, 'render_app_return'], 30);
         add_filter('woocommerce_get_cancel_order_url_raw', [self::class, 'app_cancel_url'], 10, 2);
+        add_action('init', [self::class, 'ensure_search_index'], 5);
+        add_action('technocare_app_rebuild_search_index', [self::class, 'rebuild_search_index_batch'], 10, 1);
+        add_action('save_post_product', [self::class, 'index_saved_product'], 20, 3);
+        add_action('woocommerce_product_set_stock', [self::class, 'index_stock_product'], 20, 1);
+        add_action('set_object_terms', [self::class, 'index_product_terms'], 20, 6);
     }
 
     public static function register_routes(): void
@@ -65,6 +73,16 @@ final class Technocare_App_API
             'permission_callback' => '__return_true',
         ]);
 
+        register_rest_route(self::NAMESPACE, '/suggestions', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => [self::class, 'suggestions'],
+            'permission_callback' => '__return_true',
+            'args' => [
+                'q' => ['sanitize_callback' => 'sanitize_text_field', 'required' => true],
+                'limit' => ['sanitize_callback' => 'absint', 'default' => 5],
+            ],
+        ]);
+
         register_rest_route(self::NAMESPACE, '/categories', [
             'methods' => WP_REST_Server::READABLE,
             'callback' => [self::class, 'categories'],
@@ -81,6 +99,11 @@ final class Technocare_App_API
             'methods' => WP_REST_Server::READABLE,
             'callback' => [self::class, 'projects'],
             'permission_callback' => '__return_true',
+            'args' => [
+                'q' => ['sanitize_callback' => 'sanitize_text_field', 'default' => ''],
+                'page' => ['sanitize_callback' => 'absint', 'default' => 1],
+                'pageSize' => ['sanitize_callback' => 'absint', 'default' => 12],
+            ],
         ]);
 
         register_rest_route(self::NAMESPACE, '/services', [
@@ -376,6 +399,210 @@ final class Technocare_App_API
         return $html;
     }
 
+    public static function ensure_search_index(): void
+    {
+        if (!function_exists('wc_get_product')) {
+            return;
+        }
+        if ((string) get_option(self::SEARCH_INDEX_VERSION_OPTION, '') === self::SEARCH_INDEX_VERSION) {
+            return;
+        }
+
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $table = self::search_index_table();
+        $charset = $wpdb->get_charset_collate();
+        dbDelta("CREATE TABLE {$table} (
+            product_id bigint(20) unsigned NOT NULL,
+            sku varchar(191) NOT NULL DEFAULT '',
+            normalized_sku varchar(191) NOT NULL DEFAULT '',
+            name text NOT NULL,
+            normalized_name varchar(255) NOT NULL DEFAULT '',
+            brand varchar(191) NOT NULL DEFAULT '',
+            normalized_brand varchar(191) NOT NULL DEFAULT '',
+            categories text NOT NULL,
+            normalized_categories text NOT NULL,
+            description longtext NOT NULL,
+            normalized_description longtext NOT NULL,
+            image_url text NOT NULL,
+            price decimal(20,6) NULL,
+            on_sale tinyint(1) NOT NULL DEFAULT 0,
+            in_stock tinyint(1) NOT NULL DEFAULT 0,
+            popularity bigint(20) NOT NULL DEFAULT 0,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (product_id),
+            KEY ix_tc_search_sku (normalized_sku),
+            KEY ix_tc_search_name (normalized_name(100)),
+            KEY ix_tc_search_brand (normalized_brand(100)),
+            KEY ix_tc_search_updated (updated_at)
+        ) {$charset};");
+        update_option(self::SEARCH_INDEX_VERSION_OPTION, self::SEARCH_INDEX_VERSION, false);
+        delete_option(self::SEARCH_INDEX_READY_OPTION);
+        if (!wp_next_scheduled('technocare_app_rebuild_search_index', [0])) {
+            wp_schedule_single_event(time() + 5, 'technocare_app_rebuild_search_index', [0]);
+        }
+    }
+
+    public static function rebuild_search_index_batch(int $offset = 0): void
+    {
+        if (!function_exists('wc_get_product')) {
+            return;
+        }
+        $batch_size = 200;
+        $ids = get_posts([
+            'post_type' => 'product',
+            'post_status' => 'publish',
+            'fields' => 'ids',
+            'posts_per_page' => $batch_size,
+            'offset' => max(0, $offset),
+            'orderby' => 'ID',
+            'order' => 'ASC',
+            'no_found_rows' => true,
+        ]);
+        foreach ($ids as $product_id) {
+            self::index_product((int) $product_id);
+        }
+        if (count($ids) === $batch_size) {
+            wp_schedule_single_event(time() + 2, 'technocare_app_rebuild_search_index', [$offset + $batch_size]);
+            return;
+        }
+        update_option(self::SEARCH_INDEX_READY_OPTION, gmdate(DATE_ATOM), false);
+    }
+
+    public static function index_saved_product(int $post_id, WP_Post $post, bool $update): void
+    {
+        if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) {
+            return;
+        }
+        self::index_product($post_id);
+    }
+
+    /** @param mixed $product */
+    public static function index_stock_product($product): void
+    {
+        if (!is_object($product) || !method_exists($product, 'get_id')) {
+            return;
+        }
+        $product_id = (int) $product->get_id();
+        if (method_exists($product, 'get_parent_id') && (int) $product->get_parent_id() > 0) {
+            $product_id = (int) $product->get_parent_id();
+        }
+        self::index_product($product_id);
+    }
+
+    /** @param int[] $terms @param int[] $term_taxonomy_ids */
+    public static function index_product_terms(int $object_id, $terms, $term_taxonomy_ids, string $taxonomy, bool $append, $old_term_taxonomy_ids): void
+    {
+        if (in_array($taxonomy, ['product_cat', 'pa_brand'], true) && get_post_type($object_id) === 'product') {
+            self::index_product($object_id);
+        }
+    }
+
+    private static function index_product(int $product_id): void
+    {
+        global $wpdb;
+        $table = self::search_index_table();
+        $product = function_exists('wc_get_product') ? wc_get_product($product_id) : false;
+        if (!$product || $product->get_status() !== 'publish') {
+            $wpdb->delete($table, ['product_id' => $product_id], ['%d']);
+            return;
+        }
+        $brand_terms = taxonomy_exists('pa_brand') ? wp_get_post_terms($product_id, 'pa_brand', ['fields' => 'names']) : [];
+        $category_terms = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'names']);
+        $brand = is_wp_error($brand_terms) ? '' : self::clean_text(implode(' ', $brand_terms));
+        $categories = is_wp_error($category_terms) ? '' : self::clean_text(implode(' ', $category_terms));
+        $description = self::clean_text($product->get_short_description() . ' ' . $product->get_description());
+        $image_url = $product->get_image_id() ? (wp_get_attachment_image_url($product->get_image_id(), 'medium') ?: '') : '';
+        $wpdb->replace($table, [
+            'product_id' => $product_id,
+            'sku' => (string) $product->get_sku(),
+            'normalized_sku' => self::normalize_search_text((string) $product->get_sku()),
+            'name' => self::clean_text($product->get_name()),
+            'normalized_name' => self::normalize_search_text($product->get_name()),
+            'brand' => $brand,
+            'normalized_brand' => self::normalize_search_text($brand),
+            'categories' => $categories,
+            'normalized_categories' => self::normalize_search_text($categories),
+            'description' => $description,
+            'normalized_description' => self::normalize_search_text($description),
+            'image_url' => $image_url,
+            'price' => $product->get_price() === '' ? null : (float) $product->get_price(),
+            'on_sale' => $product->is_on_sale() ? 1 : 0,
+            'in_stock' => $product->is_in_stock() ? 1 : 0,
+            'popularity' => (int) $product->get_total_sales(),
+            'updated_at' => current_time('mysql', true),
+        ]);
+    }
+
+    public static function suggestions(WP_REST_Request $request): WP_REST_Response
+    {
+        global $wpdb;
+        $query = self::normalize_search_text((string) $request->get_param('q'));
+        $limit = min(10, max(1, absint($request->get_param('limit') ?: 5)));
+        if (mb_strlen($query) < 2) {
+            return self::cacheable_response(['items' => []], time(), 60);
+        }
+        $table = self::search_index_table();
+        $exact = $query;
+        $prefix = $wpdb->esc_like($query) . '%';
+        $contains = '%' . $wpdb->esc_like($query) . '%';
+        $sql = $wpdb->prepare(
+            "SELECT product_id, sku, name, brand, image_url, price, on_sale, in_stock
+             FROM {$table}
+             WHERE normalized_sku LIKE %s OR normalized_name LIKE %s OR normalized_brand LIKE %s OR normalized_categories LIKE %s OR normalized_description LIKE %s
+             ORDER BY CASE
+                WHEN normalized_sku = %s THEN 0
+                WHEN normalized_sku LIKE %s THEN 1
+                WHEN normalized_name = %s THEN 2
+                WHEN normalized_name LIKE %s THEN 3
+                WHEN normalized_brand LIKE %s OR normalized_categories LIKE %s THEN 4
+                ELSE 5 END ASC,
+                popularity DESC, product_id DESC
+             LIMIT %d",
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+            $contains,
+            $exact,
+            $prefix,
+            $exact,
+            $prefix,
+            $contains,
+            $contains,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        $items = array_map(static fn(array $row): array => [
+            'id' => (int) $row['product_id'],
+            'name' => (string) $row['name'],
+            'sku' => (string) $row['sku'],
+            'brand' => (string) $row['brand'],
+            'imageUrl' => (string) $row['image_url'],
+            'price' => $row['price'] === null ? null : (float) $row['price'],
+            'onSale' => (bool) $row['on_sale'],
+            'inStock' => (bool) $row['in_stock'],
+        ], is_array($rows) ? $rows : []);
+        return self::cacheable_response(['items' => $items], time(), 300);
+    }
+
+    private static function search_index_table(): string
+    {
+        global $wpdb;
+        return $wpdb->prefix . 'technocare_product_search';
+    }
+
+    private static function normalize_search_text(string $value): string
+    {
+        $value = strtr($value, [
+            'Ə' => 'e', 'ə' => 'e', 'I' => 'i', 'İ' => 'i', 'ı' => 'i',
+            'Ş' => 's', 'ş' => 's', 'Ç' => 'c', 'ç' => 'c', 'Ö' => 'o',
+            'ö' => 'o', 'Ü' => 'u', 'ü' => 'u', 'Ğ' => 'g', 'ğ' => 'g',
+        ]);
+        $value = remove_accents(mb_strtolower($value, 'UTF-8'));
+        return trim((string) preg_replace('/[^a-z0-9]+/u', ' ', $value));
+    }
+
     public static function products(WP_REST_Request $request): WP_REST_Response
     {
         if (!function_exists('wc_get_product')) {
@@ -460,9 +687,11 @@ final class Technocare_App_API
         if (!$term || !$query->is_search()) {
             return $search;
         }
-        $like = '%' . $wpdb->esc_like((string) $term) . '%';
+        $normalized = self::normalize_search_text((string) $term);
+        $like = '%' . $wpdb->esc_like($normalized) . '%';
+        $table = self::search_index_table();
         return $wpdb->prepare(
-            " AND ({$wpdb->posts}.post_title LIKE %s OR {$wpdb->posts}.post_excerpt LIKE %s OR {$wpdb->posts}.post_content LIKE %s OR EXISTS (SELECT 1 FROM {$wpdb->postmeta} tcsku WHERE tcsku.post_id = {$wpdb->posts}.ID AND tcsku.meta_key = '_sku' AND tcsku.meta_value LIKE %s) OR EXISTS (SELECT 1 FROM {$wpdb->term_relationships} tcr JOIN {$wpdb->term_taxonomy} tct ON tct.term_taxonomy_id = tcr.term_taxonomy_id JOIN {$wpdb->terms} tcterm ON tcterm.term_id = tct.term_id WHERE tcr.object_id = {$wpdb->posts}.ID AND tct.taxonomy IN ('product_cat','pa_brand') AND tcterm.name LIKE %s)) ",
+            " AND EXISTS (SELECT 1 FROM {$table} tc_search WHERE tc_search.product_id = {$wpdb->posts}.ID AND (tc_search.normalized_sku LIKE %s OR tc_search.normalized_name LIKE %s OR tc_search.normalized_brand LIKE %s OR tc_search.normalized_categories LIKE %s OR tc_search.normalized_description LIKE %s)) ",
             $like,
             $like,
             $like,
@@ -475,22 +704,31 @@ final class Technocare_App_API
     public static function rank_product_search(array $clauses, WP_Query $query): array
     {
         global $wpdb;
-        $term = trim((string) $query->get('technocare_search'));
+        $term = self::normalize_search_text((string) $query->get('technocare_search'));
         if ($term === '') {
             return $clauses;
         }
-        $exact = esc_sql($term);
-        $prefix = esc_sql($wpdb->esc_like($term) . '%');
-        $contains = esc_sql('%' . $wpdb->esc_like($term) . '%');
-        $clauses['join'] .= " LEFT JOIN {$wpdb->postmeta} tc_rank_sku ON (tc_rank_sku.post_id = {$wpdb->posts}.ID AND tc_rank_sku.meta_key = '_sku') ";
-        $clauses['orderby'] = "CASE
-            WHEN tc_rank_sku.meta_value = '{$exact}' THEN 0
-            WHEN tc_rank_sku.meta_value LIKE '{$prefix}' THEN 1
-            WHEN {$wpdb->posts}.post_title = '{$exact}' THEN 2
-            WHEN {$wpdb->posts}.post_title LIKE '{$prefix}' THEN 3
-            WHEN EXISTS (SELECT 1 FROM {$wpdb->term_relationships} rank_rel JOIN {$wpdb->term_taxonomy} rank_tax ON rank_tax.term_taxonomy_id = rank_rel.term_taxonomy_id JOIN {$wpdb->terms} rank_term ON rank_term.term_id = rank_tax.term_id WHERE rank_rel.object_id = {$wpdb->posts}.ID AND rank_tax.taxonomy IN ('product_cat','pa_brand') AND rank_term.name LIKE '{$contains}') THEN 4
-            WHEN {$wpdb->posts}.post_excerpt LIKE '{$contains}' OR {$wpdb->posts}.post_content LIKE '{$contains}' THEN 5
-            ELSE 6 END ASC, {$wpdb->posts}.post_date DESC";
+        $table = self::search_index_table();
+        $prefix = $wpdb->esc_like($term) . '%';
+        $contains = '%' . $wpdb->esc_like($term) . '%';
+        $clauses['join'] .= " INNER JOIN {$table} tc_rank_search ON tc_rank_search.product_id = {$wpdb->posts}.ID ";
+        $clauses['orderby'] = $wpdb->prepare(
+            "CASE
+                WHEN tc_rank_search.normalized_sku = %s THEN 0
+                WHEN tc_rank_search.normalized_sku LIKE %s THEN 1
+                WHEN tc_rank_search.normalized_name = %s THEN 2
+                WHEN tc_rank_search.normalized_name LIKE %s THEN 3
+                WHEN tc_rank_search.normalized_brand LIKE %s OR tc_rank_search.normalized_categories LIKE %s THEN 4
+                WHEN tc_rank_search.normalized_description LIKE %s THEN 5
+                ELSE 6 END ASC, tc_rank_search.popularity DESC, {$wpdb->posts}.post_date DESC",
+            $term,
+            $prefix,
+            $term,
+            $prefix,
+            $contains,
+            $contains,
+            $contains
+        );
         $clauses['groupby'] = "{$wpdb->posts}.ID";
         return $clauses;
     }
@@ -609,11 +847,22 @@ final class Technocare_App_API
     {
         $page = max(1, absint($request->get_param('page') ?: 1));
         $page_size = min(30, max(1, absint($request->get_param('pageSize') ?: 12)));
+        $search = self::normalize_search_text((string) $request->get_param('q'));
         $landing = get_page_by_path('layiheler', OBJECT, 'page');
         if ($landing instanceof WP_Post && $landing->post_status === 'publish') {
             $content = self::render_post_content($landing);
             $projects = self::extract_project_cards($content, $landing);
             if ($projects !== []) {
+                if ($search !== '') {
+                    $projects = array_values(array_filter($projects, static function (array $project) use ($search): bool {
+                        $haystack = self::normalize_search_text(
+                            (string) ($project['name'] ?? '') . ' ' .
+                            (string) ($project['description'] ?? '') . ' ' .
+                            (string) ($project['content'] ?? '')
+                        );
+                        return str_contains($haystack, $search);
+                    }));
+                }
                 $total = count($projects);
                 $total_pages = (int) ceil($total / $page_size);
                 $items = array_slice($projects, ($page - 1) * $page_size, $page_size);
@@ -636,6 +885,7 @@ final class Technocare_App_API
             'posts_per_page' => $page_size,
             'orderby' => 'menu_order date',
             'order' => 'DESC',
+            's' => $search,
         ]);
         $items = array_map(static function (WP_Post $post): array {
             $content = self::render_post_content($post);

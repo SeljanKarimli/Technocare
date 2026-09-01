@@ -42,7 +42,7 @@ class ProfilePage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 24, 18, 120),
         children: [
-          const CircleAvatar(radius: 45, backgroundColor: Color(0xFFEAF7E5), child: Icon(Icons.person_rounded, size: 48, color: Color(0xFF3E8F2E))),
+          const CircleAvatar(radius: 45, backgroundColor: Color(0xFFEAF7E5), child: Icon(Icons.person_rounded, size: 48, color: Color(0xFF2F7623))),
           const SizedBox(height: 14),
           Text(auth.userName?.isNotEmpty == true ? auth.userName! : 'Technocare istifadəçisi', textAlign: TextAlign.center, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
@@ -80,7 +80,7 @@ class _ProfileTile extends StatelessWidget {
     child: ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      leading: CircleAvatar(backgroundColor: const Color(0xFFEAF7E5), child: Icon(icon, color: const Color(0xFF3E8F2E))),
+      leading: CircleAvatar(backgroundColor: const Color(0xFFEAF7E5), child: Icon(icon, color: const Color(0xFF2F7623))),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
       trailing: const Icon(Icons.chevron_right_rounded),
     ),

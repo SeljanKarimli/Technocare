@@ -1,76 +1,42 @@
-﻿// Services/UserService.cs
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using backend.Models;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens; // For JWT signing credentials
+using MongoDB.Bson;
 using MongoDB.Driver;
-using Org.BouncyCastle.Crypto.Generators;
-using System;
-using System.IdentityModel.Tokens.Jwt; // For JWT token
-using System.Linq; // For LINQ operations
-using System.Security.Claims; // For JWT claims
-using System.Security.Cryptography; // For password hashing
-using System.Text; // For encoding
-using System.Threading.Tasks;
+
 namespace backend.Services;
-public class UserService
+
+public sealed class UserService
 {
-    private readonly IMongoCollection<User> _usersCollection;
-    private readonly IMongoCollection<Cart> _cartsCollection;
-    private readonly IMongoCollection<ShopCart> _shopCartsCollection;
-    private readonly IConfiguration _configuration;
-    private readonly EmailService _emailService;
+    private const string TokenHashPrefix = "sha256:";
+    private readonly IMongoCollection<User> _users;
+    private readonly IMongoCollection<Cart> _legacyCarts;
+    private readonly IMongoCollection<ShopCart> _shopCarts;
+    private readonly EmailOutboxService _emailOutbox;
     private readonly TokenService _tokenService;
-    private readonly JwtSettings _jwtSettings;
     private readonly ILogger<UserService> _logger;
 
     public UserService(
-        IOptions<MongoDbSettings> mongoDbSettings,
-        IOptions<JwtSettings> jwtSettings,
-        EmailService emailService,
+        IOptions<MongoDbSettings> settings,
+        EmailOutboxService emailOutbox,
         TokenService tokenService,
-        IConfiguration configuration,
         ILogger<UserService> logger)
     {
-        var mongoClient = new MongoClient(mongoDbSettings.Value.ConnectionString);
-        var mongoDatabase = mongoClient.GetDatabase(mongoDbSettings.Value.DatabaseName);
-        _usersCollection = mongoDatabase.GetCollection<User>(mongoDbSettings.Value.UsersCollectionName);
-        _cartsCollection = mongoDatabase.GetCollection<Cart>("Carts");
-        _shopCartsCollection = mongoDatabase.GetCollection<ShopCart>(mongoDbSettings.Value.ShopCartsCollectionName);
-        _emailService = emailService;
+        var client = new MongoClient(settings.Value.ConnectionString);
+        var database = client.GetDatabase(settings.Value.DatabaseName);
+        _users = database.GetCollection<User>(settings.Value.UsersCollectionName);
+        _legacyCarts = database.GetCollection<Cart>(settings.Value.CartsCollectionName);
+        _shopCarts = database.GetCollection<ShopCart>(settings.Value.ShopCartsCollectionName);
+        _emailOutbox = emailOutbox;
         _tokenService = tokenService;
-        _jwtSettings = jwtSettings.Value;
-        _configuration = configuration;
         _logger = logger;
     }
 
-    // Hashes a password using SHA256
-    // In UserService.cs
-    public string HashPassword(string password)
-    {
-        // Generate salt automatically and hash the password
-        return BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
-    }
-    public async Task<List<User>> GetAllAsync()
-    {
-        return await _usersCollection.Find(_ => true).ToListAsync();
-    }
+    public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
-    public async Task<bool> DeleteAsync(string userId)
-    {
-        var user = await GetByIdAsync(userId);
-        if (user is null)
-        {
-            return false;
-        }
-
-        await _shopCartsCollection.DeleteManyAsync(cart => cart.UserId == userId);
-        if (!string.IsNullOrWhiteSpace(user.CartId))
-        {
-            await _cartsCollection.DeleteOneAsync(cart => cart.Id == user.CartId);
-        }
-        var result = await _usersCollection.DeleteOneAsync(item => item.Id == userId);
-        return result.DeletedCount == 1;
-    }
+    public string HashPassword(string password) => BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12);
 
     public bool VerifyPassword(string inputPassword, string storedHash)
     {
@@ -80,321 +46,255 @@ public class UserService
         }
         catch (BCrypt.Net.SaltParseException)
         {
-            // Handle cases where the hash is invalid
             return false;
         }
     }
-    public string GenerateJwtToken(User user)
+
+    public Task<List<User>> GetAllAsync() => _users.Find(_ => true).ToListAsync();
+
+    public async Task<bool> DeleteAsync(string userId)
     {
-        return _tokenService.GenerateJwtToken(user);
+        var user = await GetByIdAsync(userId);
+        if (user is null)
+        {
+            return false;
+        }
+
+        await _shopCarts.DeleteManyAsync(cart => cart.UserId == userId);
+        if (!string.IsNullOrWhiteSpace(user.CartId))
+        {
+            await _legacyCarts.DeleteOneAsync(cart => cart.Id == user.CartId);
+        }
+        return (await _users.DeleteOneAsync(item => item.Id == userId)).DeletedCount == 1;
     }
 
-    // Add this method
+    public string GenerateJwtToken(User user) => _tokenService.GenerateJwtToken(user);
+
     public async Task<User?> GetByEmailAsync(string email)
     {
-        return await _usersCollection.Find(u => u.Email == email).FirstOrDefaultAsync();
+        var normalized = NormalizeEmail(email);
+        var filter = Builders<User>.Filter.Or(
+            Builders<User>.Filter.Eq(user => user.NormalizedEmail, normalized),
+            Builders<User>.Filter.Regex(user => user.Email, new BsonRegularExpression($"^{Regex.Escape(normalized)}$", "i")));
+        var user = await _users.Find(filter).FirstOrDefaultAsync();
+        if (user is not null && user.NormalizedEmail != normalized)
+        {
+            try
+            {
+                await _users.UpdateOneAsync(
+                    item => item.Id == user.Id,
+                    Builders<User>.Update
+                        .Set(item => item.Email, normalized)
+                        .Set(item => item.NormalizedEmail, normalized));
+                user.Email = normalized;
+                user.NormalizedEmail = normalized;
+            }
+            catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+            {
+                _logger.LogWarning("A duplicate normalized email was detected while migrating a legacy user.");
+            }
+        }
+        return user;
     }
-    // Generates a random token for email verification or password reset
-    private string GenerateRandomToken()
-    {
-        // Using GUID is simple and generally unique enough for tokens
-        return Guid.NewGuid().ToString("N");
-    }
 
-
-
-    // Update user role
     public async Task<bool> UpdateUserRoleAsync(string id, string newRole)
     {
-        var update = Builders<User>.Update.Set(u => u.Role, newRole);
-        var result = await _usersCollection.UpdateOneAsync(u => u.Id == id, update);
-        return result.ModifiedCount > 0;
-    }
-    // Logs in a user
-    public string GenerateAdminToken(User user)
-    {
-        if (user == null) throw new ArgumentNullException(nameof(user));
-
-        // Get configuration with null checks
-        var secret = _configuration["JwtSettings:Secret"]
-            ?? throw new InvalidOperationException("JWT Secret not configured");
-        var issuer = _configuration["JwtSettings:Issuer"] ?? "your-app-name";
-        var audience = _configuration["JwtSettings:Audience"] ?? "your-app-name";
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes(secret);
-        var userId = user.Id
-            ?? throw new InvalidOperationException("Cannot issue a token for a user without an ID.");
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(new[]
-            {
-            new Claim(ClaimTypes.NameIdentifier, userId),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role ?? "User")
-        }),
-            Expires = DateTime.UtcNow.AddMinutes(
-                _configuration.GetValue<int>("JwtSettings:ExpiryMinutes", 60)),
-            Issuer = issuer,
-            Audience = audience,
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
-                SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
+        var update = Builders<User>.Update.Set(user => user.Role, newRole);
+        return (await _users.UpdateOneAsync(user => user.Id == id, update)).ModifiedCount > 0;
     }
 
     public async Task<UserResponse?> RegisterAsync(RegisterRequest request)
     {
-        var normalizedEmail = request.Email.ToLowerInvariant();
-        var existingUser = await _usersCollection.Find(u => u.Email.ToLower() == normalizedEmail).FirstOrDefaultAsync();
-        if (existingUser != null)
+        var normalizedEmail = NormalizeEmail(request.Email);
+        if (await GetByEmailAsync(normalizedEmail) is not null)
+        {
             return null;
-
+        }
 
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-
-
-        // FIRST: Create empty cart for the new user
-        var newCart = new Cart { Items = new List<CartItem>() };
-        await _cartsCollection.InsertOneAsync(newCart);
-
-
         var user = new User
         {
-            Name = request.Name,
+            Name = request.Name.Trim(),
             Email = normalizedEmail,
+            NormalizedEmail = normalizedEmail,
             PasswordHash = HashPassword(request.Password),
-            Phone = request.Phone,
+            Phone = request.Phone.Trim(),
             EmailVerified = false,
-            EmailVerificationCode = code,
+            EmailVerificationCode = HashOneTimeToken(code),
             EmailVerificationCodeExpires = DateTime.UtcNow.AddMinutes(10),
             Role = "User",
-            CartId = newCart.Id // ★ Assign newly created cart to user
         };
 
-
-        await _usersCollection.InsertOneAsync(user);
-
-
-        await _emailService.SendVerificationCodeEmail(user.Email, code);
-
-
-        return new UserResponse
+        try
         {
-            Id = user.Id!,
-            Name = user.Name,
-            Email = user.Email,
-            Phone = user.Phone,
-            Role = user.Role,
-            EmailVerified = user.EmailVerified,
-            CartId = user.CartId // ★ RETURN CART ID
-        };
+            await _users.InsertOneAsync(user);
+        }
+        catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return null;
+        }
+
+        try
+        {
+            await _emailOutbox.EnqueueVerificationAsync(user.Email, code);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning("Verification email could not be queued after registration: {ExceptionType}", exception.GetType().Name);
+        }
+
+        return ToResponse(user);
     }
 
     public async Task<bool> VerifyEmailAsync(string email, string code)
     {
-        var now = DateTime.UtcNow;
-
-        var user = await _usersCollection
-            .Find(u => u.Email == email &&
-                       u.EmailVerificationCode == code &&
-                       u.EmailVerificationCodeExpires > now)
-            .FirstOrDefaultAsync();
-
-        if (user == null)
+        var user = await GetByEmailAsync(email);
+        if (user is null || user.EmailVerified || user.EmailVerificationCodeExpires <= DateTime.UtcNow ||
+            !OneTimeTokenMatches(code.Trim(), user.EmailVerificationCode))
+        {
             return false;
+        }
 
         var update = Builders<User>.Update
-            .Set(u => u.EmailVerified, true)
-            .Set(u => u.EmailVerificationCode, null)
-            .Set(u => u.EmailVerificationCodeExpires, null);
-
-        var result = await _usersCollection.UpdateOneAsync(u => u.Id == user.Id, update);
-
-        return result.ModifiedCount > 0;
+            .Set(item => item.EmailVerified, true)
+            .Unset(item => item.EmailVerificationCode)
+            .Unset(item => item.EmailVerificationCodeExpires);
+        return (await _users.UpdateOneAsync(item => item.Id == user.Id, update)).ModifiedCount > 0;
     }
 
-    // Login user — UPDATED TO ALSO RETURN CART ID
     public async Task<UserResponse?> LoginAsync(LoginRequest request)
     {
-        // Find user by email
-        var user = await _usersCollection
-            .Find(u => u.Email == request.Email)
-            .FirstOrDefaultAsync();
-
-        // Invalid email or password
-        if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
-            return null;
-
-        // If email is not verified, return a response without token
-        if (!user.EmailVerified)
+        var user = await GetByEmailAsync(request.Email);
+        if (user is null || !VerifyPassword(request.Password, user.PasswordHash))
         {
-            return new UserResponse
-            {
-                Id = user.Id!,
-                Name = user.Name,
-                Email = user.Email,
-                Phone = user.Phone,
-                Role = user.Role,
-                EmailVerified = false,
-                CartId = user.CartId
-                // Token is null here on purpose
-            };
+            return null;
         }
 
-        // Email is verified → generate JWT token
-        var token = _tokenService.GenerateJwtToken(user);
-
-        return new UserResponse
+        var response = ToResponse(user);
+        if (user.EmailVerified)
         {
-            Id = user.Id!,
-            Name = user.Name,
-            Email = user.Email,
-            Phone = user.Phone,
-            Role = user.Role,
-            EmailVerified = true,
-            Token = token,
-            CartId = user.CartId
-        };
+            response.Token = _tokenService.GenerateJwtToken(user);
+        }
+        return response;
     }
 
-    // Sends a password reset email
     public async Task<bool> SendPasswordResetEmailAsync(string email)
     {
-        var user = await _usersCollection.Find(u => u.Email == email).FirstOrDefaultAsync();
-
-        if (user == null)
+        var user = await GetByEmailAsync(email);
+        if (user is null)
         {
-            // For security reasons, always return true even if user not found
-            // to avoid exposing whether an email is registered or not.
             return true;
         }
 
-        var resetToken = GenerateRandomToken();
-        // Set expiry for 1 hour from now
-        var resetTokenExpiry = DateTime.UtcNow.AddHours(1);
-
-        var update = Builders<User>.Update
-            .Set(u => u.ResetToken, resetToken)
-            .Set(u => u.ResetTokenExpiry, resetTokenExpiry);
-
-        await _usersCollection.UpdateOneAsync(u => u.Id == user.Id, update);
-
-        string emailBody = $"You requested a password reset. Here is your reset token: {resetToken}. " +
-                           "This token will expire in 1 hour. Use it in the app to reset your password.";
-
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            await _emailService.SendEmailAsync(user.Email, "Password Reset Request for Technocare", emailBody);
-        }
-        else
-        {
-            _logger.LogWarning("Password reset email was skipped because the stored email address is empty.");
-        }
-
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+        await _users.UpdateOneAsync(
+            item => item.Id == user.Id,
+            Builders<User>.Update
+                .Set(item => item.ResetToken, HashOneTimeToken(token))
+                .Set(item => item.ResetTokenExpiry, DateTime.UtcNow.AddHours(1)));
+        await _emailOutbox.EnqueuePasswordResetAsync(user.Email, token);
         return true;
     }
 
-    /// <summary>
-    /// Resends a verification email to an unverified user.
-    /// </summary>
-    /// <param name="email">The email of the user to resend verification to.</param>
-    /// <returns>True if the email was sent (or user doesn't exist/is already verified and no action taken), false on explicit error (not authentication).</returns>
     public async Task<bool> ResendVerificationEmailAsync(string email)
     {
-        var user = await _usersCollection.Find(u => u.Email == email).FirstOrDefaultAsync();
-
-        if (user == null || user.EmailVerified)
+        var user = await GetByEmailAsync(email);
+        if (user is null || user.EmailVerified)
         {
-            // For security reasons, return true if user not found or already verified,
-            // to avoid exposing whether an email is registered/verified.
             return true;
         }
 
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        var update = Builders<User>.Update
-            .Set(u => u.EmailVerificationCode, code)
-            .Set(u => u.EmailVerificationCodeExpires, DateTime.UtcNow.AddMinutes(10));
-        await _usersCollection.UpdateOneAsync(u => u.Id == user.Id, update);
-
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            await _emailService.SendVerificationCodeEmail(user.Email, code);
-        }
-        else
-        {
-            _logger.LogWarning("Verification email was skipped because the stored email address is empty.");
-        }
+        await _users.UpdateOneAsync(
+            item => item.Id == user.Id,
+            Builders<User>.Update
+                .Set(item => item.EmailVerificationCode, HashOneTimeToken(code))
+                .Set(item => item.EmailVerificationCodeExpires, DateTime.UtcNow.AddMinutes(10)));
+        await _emailOutbox.EnqueueVerificationAsync(user.Email, code);
         return true;
     }
 
-
-    // Resets user's password
     public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request)
     {
-        var user = await _usersCollection.Find(u => u.Email == request.Email && u.ResetToken == request.Token && u.ResetTokenExpiry > DateTime.UtcNow).FirstOrDefaultAsync();
-
-        if (user == null)
+        var user = await GetByEmailAsync(request.Email);
+        if (user is null || user.ResetTokenExpiry <= DateTime.UtcNow || !OneTimeTokenMatches(request.Token.Trim(), user.ResetToken))
         {
-            return false; // Invalid email, token, or expired token
+            return false;
         }
 
-        // Update password and clear reset token fields
         var update = Builders<User>.Update
-            .Set(u => u.PasswordHash, HashPassword(request.NewPassword))
-            .Unset(u => u.ResetToken)
-            .Unset(u => u.ResetTokenExpiry);
-
-        var result = await _usersCollection.UpdateOneAsync(u => u.Id == user.Id, update);
-
-        return result.ModifiedCount > 0;
+            .Set(item => item.PasswordHash, HashPassword(request.NewPassword))
+            .Unset(item => item.ResetToken)
+            .Unset(item => item.ResetTokenExpiry);
+        return (await _users.UpdateOneAsync(item => item.Id == user.Id, update)).ModifiedCount > 0;
     }
 
-    // Get user by ID (useful for profile display)
-    public async Task<User?> GetByIdAsync(string id) =>
-        await _usersCollection.Find(u => u.Id == id).FirstOrDefaultAsync();
+    public Task<User?> GetByIdAsync(string id) => _users.Find(user => user.Id == id).FirstOrDefaultAsync();
 
-    // Admin: Get all users
-    public async Task<List<User>> GetAllUsersAsync() =>
-        await _usersCollection.Find(_ => true).ToListAsync();
+    public Task<List<User>> GetAllUsersAsync() => GetAllAsync();
 
-    // Admin: Delete user
-    public async Task<bool> DeleteUserAsync(string id)
-    {
-        var result = await _usersCollection.DeleteOneAsync(u => u.Id == id);
-        return result.DeletedCount > 0;
-    }
+    public async Task<bool> DeleteUserAsync(string id) =>
+        (await _users.DeleteOneAsync(user => user.Id == id)).DeletedCount > 0;
 
-    // Registers a new user with email verification code
     public async Task RegisterUserAsync(User user)
     {
-        // ... existing user creation logic ...
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        user.EmailVerificationCode = code;
+        user.Email = NormalizeEmail(user.Email);
+        user.NormalizedEmail = user.Email;
+        user.EmailVerificationCode = HashOneTimeToken(code);
         user.EmailVerificationCodeExpires = DateTime.UtcNow.AddMinutes(10);
         user.EmailVerified = false;
-        await _usersCollection.InsertOneAsync(user);
-
-        await _emailService.SendVerificationCodeEmail(user.Email, code);
+        await _users.InsertOneAsync(user);
+        await _emailOutbox.EnqueueVerificationAsync(user.Email, code);
     }
 
     public async Task UpdateAsync(User user)
     {
-        var filter = Builders<User>.Filter.Eq(u => u.Id, user.Id);
-        await _usersCollection.ReplaceOneAsync(filter, user);
+        user.Email = NormalizeEmail(user.Email);
+        user.NormalizedEmail = user.Email;
+        await _users.ReplaceOneAsync(item => item.Id == user.Id, user);
     }
 
     public async Task UpdateVerificationAsync(string userId, bool emailVerified, string? code, DateTime? expires)
     {
+        var storedCode = string.IsNullOrWhiteSpace(code) ? null : HashOneTimeToken(code);
         var update = Builders<User>.Update
-            .Set(u => u.EmailVerified, emailVerified)
-            .Set(u => u.EmailVerificationCode, code)
-            .Set(u => u.EmailVerificationCodeExpires, expires);
+            .Set(user => user.EmailVerified, emailVerified)
+            .Set(user => user.EmailVerificationCode, storedCode)
+            .Set(user => user.EmailVerificationCodeExpires, expires);
+        await _users.UpdateOneAsync(user => user.Id == userId, update);
+    }
 
-        await _usersCollection.UpdateOneAsync(u => u.Id == userId, update);
+    private static UserResponse ToResponse(User user) => new()
+    {
+        Id = user.Id!,
+        Name = user.Name,
+        Email = user.Email,
+        Phone = user.Phone,
+        Role = user.Role,
+        EmailVerified = user.EmailVerified,
+        CartId = user.CartId,
+    };
+
+    private static string HashOneTimeToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return TokenHashPrefix + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static bool OneTimeTokenMatches(string presented, string? stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return false;
+        }
+        if (!stored.StartsWith(TokenHashPrefix, StringComparison.Ordinal))
+        {
+            return string.Equals(presented, stored, StringComparison.Ordinal);
+        }
+        var expected = HashOneTimeToken(presented);
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(expected),
+            Encoding.UTF8.GetBytes(stored));
     }
 }

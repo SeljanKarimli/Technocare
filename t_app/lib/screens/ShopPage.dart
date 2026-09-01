@@ -22,6 +22,7 @@ class _ShopPageState extends State<ShopPage> {
   final _scrollController = ScrollController();
   Timer? _debounce;
   List<ShopProduct> _products = [];
+  List<ShopSuggestion> _suggestions = [];
   List<ShopTaxonomy> _categories = [];
   List<ShopTaxonomy> _brands = [];
   List<String> _recentSearches = [];
@@ -42,6 +43,8 @@ class _ShopPageState extends State<ShopPage> {
   bool _loadingMore = false;
   String? _error;
   bool _showSuggestions = false;
+  bool _isStale = false;
+  DateTime? _cachedAt;
 
   @override
   void initState() {
@@ -71,11 +74,29 @@ class _ShopPageState extends State<ShopPage> {
 
   void _onSearchChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 350),
-      () => _fetch(reset: true),
-    );
-    setState(() => _showSuggestions = value.trim().length >= 2);
+    final canSuggest = value.trim().length >= 2;
+    setState(() {
+      _showSuggestions = canSuggest;
+      if (!canSuggest) _suggestions = [];
+    });
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      await Future.wait([_fetch(reset: true), _fetchSuggestions()]);
+    });
+  }
+
+  Future<void> _fetchSuggestions() async {
+    final query = _searchController.text.trim();
+    if (query.length < 2) return;
+    final version = _requestVersion;
+    try {
+      final items = await context.read<ShopRepository>().getSuggestions(query);
+      if (!mounted || version != _requestVersion) return;
+      setState(() => _suggestions = items);
+    } catch (_) {
+      if (mounted && version == _requestVersion) {
+        setState(() => _suggestions = []);
+      }
+    }
   }
 
   void _onScroll() {
@@ -87,7 +108,7 @@ class _ShopPageState extends State<ShopPage> {
     }
   }
 
-  Future<void> _fetch({required bool reset}) async {
+  Future<void> _fetch({required bool reset, bool forceRefresh = false}) async {
     if (reset) {
       final previous = _requestCancellation;
       if (previous != null && !previous.isCompleted) previous.complete();
@@ -116,14 +137,9 @@ class _ShopPageState extends State<ShopPage> {
         maxPrice: _maxPrice,
         sort: _sort,
         abortTrigger: cancellation.future,
+        forceRefresh: forceRefresh,
       );
       if (!mounted || requestVersion != _requestVersion) return;
-      if (_searchController.text.trim().length >= 2) {
-        await context.read<ShopRepository>().saveRecentSearch(
-          _searchController.text,
-        );
-        await _loadRecentSearches();
-      }
       setState(() {
         _products = reset
             ? result.items
@@ -141,6 +157,8 @@ class _ShopPageState extends State<ShopPage> {
         _page = result.page;
         _total = result.total;
         _totalPages = result.totalPages;
+        _isStale = result.isStale;
+        _cachedAt = result.cachedAt;
         _error = null;
       });
     } catch (error) {
@@ -155,6 +173,27 @@ class _ShopPageState extends State<ShopPage> {
         });
       }
     }
+  }
+
+  Future<void> _submitSearch([String? value]) async {
+    final query = (value ?? _searchController.text).trim();
+    if (query.isNotEmpty) _searchController.text = query;
+    setState(() => _showSuggestions = false);
+    await context.read<ShopRepository>().saveRecentSearch(query);
+    await _loadRecentSearches();
+    await _fetch(reset: true);
+  }
+
+  Future<void> _openProduct(ShopProduct product) async {
+    await context.read<ShopRepository>().saveRecentSearch(
+      _searchController.text,
+    );
+    await _loadRecentSearches();
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ShopProductDetailPage(product: product)),
+    );
   }
 
   Future<void> _addToCart(ShopProduct product) async {
@@ -256,10 +295,7 @@ class _ShopPageState extends State<ShopPage> {
                 controller: _searchController,
                 onChanged: _onSearchChanged,
                 textInputAction: TextInputAction.search,
-                onSubmitted: (_) {
-                  setState(() => _showSuggestions = false);
-                  _fetch(reset: true);
-                },
+                onSubmitted: _submitSearch,
                 decoration: InputDecoration(
                   hintText: 'Məhsul, SKU və ya brend axtarın',
                   prefixIcon: const Icon(Icons.search_rounded),
@@ -303,7 +339,9 @@ class _ShopPageState extends State<ShopPage> {
             ],
           ),
         ),
-        if (_showSuggestions && _products.isNotEmpty)
+        if (_isStale)
+          _ShopOfflineBanner(cachedAt: _cachedAt),
+        if (_showSuggestions && _suggestions.isNotEmpty)
           Material(
             color: Colors.white,
             elevation: 5,
@@ -312,9 +350,9 @@ class _ShopPageState extends State<ShopPage> {
               child: ListView.builder(
                 shrinkWrap: true,
                 padding: EdgeInsets.zero,
-                itemCount: _products.length > 5 ? 5 : _products.length,
+                itemCount: _suggestions.length,
                 itemBuilder: (_, index) {
-                  final suggestion = _products[index];
+                  final suggestion = _suggestions[index];
                   return ListTile(
                     dense: true,
                     leading: const Icon(Icons.search_rounded, size: 19),
@@ -327,9 +365,7 @@ class _ShopPageState extends State<ShopPage> {
                         ? null
                         : Text('SKU: ${suggestion.sku}'),
                     onTap: () {
-                      _searchController.text = suggestion.name;
-                      setState(() => _showSuggestions = false);
-                      _fetch(reset: true);
+                      _submitSearch(suggestion.name);
                     },
                   );
                 },
@@ -408,7 +444,7 @@ class _ShopPageState extends State<ShopPage> {
                 label: Text(_recentSearches[index]),
                 onPressed: () {
                   _searchController.text = _recentSearches[index];
-                  _fetch(reset: true);
+                  _submitSearch();
                 },
               ),
             ),
@@ -448,7 +484,7 @@ class _ShopPageState extends State<ShopPage> {
       );
     }
     return RefreshIndicator(
-      onRefresh: () => _fetch(reset: true),
+      onRefresh: () => _fetch(reset: true, forceRefresh: true),
       child: GridView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 110),
@@ -471,8 +507,31 @@ class _ShopPageState extends State<ShopPage> {
           return _ShopProductCard(
             product: product,
             onAdd: () => _addToCart(product),
+            onOpen: () => _openProduct(product),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ShopOfflineBanner extends StatelessWidget {
+  final DateTime? cachedAt;
+  const _ShopOfflineBanner({this.cachedAt});
+
+  @override
+  Widget build(BuildContext context) {
+    final time = cachedAt?.toLocal();
+    final updated = time == null
+        ? ''
+        : ' Son yenilənmə: ${time.day.toString().padLeft(2, '0')}.${time.month.toString().padLeft(2, '0')} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}.';
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFFF4D8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      child: Text(
+        'Offline məlumat göstərilir.$updated',
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -481,7 +540,12 @@ class _ShopPageState extends State<ShopPage> {
 class _ShopProductCard extends StatelessWidget {
   final ShopProduct product;
   final VoidCallback onAdd;
-  const _ShopProductCard({required this.product, required this.onAdd});
+  final VoidCallback onOpen;
+  const _ShopProductCard({
+    required this.product,
+    required this.onAdd,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -490,12 +554,7 @@ class _ShopProductCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ShopProductDetailPage(product: product),
-          ),
-        ),
+        onTap: onOpen,
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: const Color(0xFFE4E9E2)),
@@ -521,6 +580,14 @@ class _ShopProductCard extends StatelessWidget {
                               fit: BoxFit.contain,
                               placeholder: (_, __) =>
                                   Container(color: const Color(0xFFF4F6F3)),
+                              errorWidget: (_, __, ___) => const ColoredBox(
+                                color: Color(0xFFF4F6F3),
+                                child: Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 48,
+                                  color: Color(0xFF69736C),
+                                ),
+                              ),
                             ),
                     ),
                     if (product.onSale)
@@ -529,7 +596,7 @@ class _ShopProductCard extends StatelessWidget {
                         left: 9,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Color(0xFF59BE3F),
+                            color: Color(0xFF2F7623),
                             borderRadius: BorderRadius.all(Radius.circular(20)),
                           ),
                           child: Padding(
@@ -562,7 +629,7 @@ class _ShopProductCard extends StatelessWidget {
                           : product.brand.toUpperCase(),
                       maxLines: 1,
                       style: const TextStyle(
-                        color: Color(0xFF59BE3F),
+                        color: Color(0xFF2F7623),
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
                         letterSpacing: .5,
@@ -604,6 +671,9 @@ class _ShopProductCard extends StatelessWidget {
                           ),
                         ),
                         IconButton.filled(
+                          tooltip: product.inStock
+                              ? 'Səbətə əlavə et'
+                              : 'Məhsul stokda yoxdur',
                           onPressed: product.purchasable && product.inStock
                               ? onAdd
                               : null,
@@ -612,7 +682,7 @@ class _ShopProductCard extends StatelessWidget {
                             size: 18,
                           ),
                           style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFF59BE3F),
+                            backgroundColor: const Color(0xFF2F7623),
                             foregroundColor: Colors.white,
                           ),
                         ),
@@ -804,7 +874,7 @@ class _FilterSheetState extends State<_FilterSheet> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: inStock,
-                activeColor: const Color(0xFF59BE3F),
+                activeColor: const Color(0xFF2F7623),
                 title: const Text('Yalnız stokda olanlar'),
                 onChanged: (value) => setState(() => inStock = value),
               ),
@@ -904,7 +974,7 @@ class _ShopMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 64, color: const Color(0xFF59BE3F)),
+          Icon(icon, size: 64, color: const Color(0xFF2F7623)),
           const SizedBox(height: 16),
           Text(
             title,

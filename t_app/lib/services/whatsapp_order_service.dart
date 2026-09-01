@@ -7,9 +7,17 @@ class WhatsAppOrderService {
 
   const WhatsAppOrderService(this._shopRepository);
 
-  Future<Uri> createOrderUri(ShopCart cart) async {
+  Future<Uri> createOrderUri(
+    ShopCart cart, {
+    bool pricesRequireConfirmation = false,
+  }) async {
     final phone = await resolveTechnocarePhone();
-    return Uri.https('wa.me', '/$phone', {'text': buildOrderMessage(cart)});
+    return Uri.https('wa.me', '/$phone', {
+      'text': buildOrderMessage(
+        cart,
+        pricesRequireConfirmation: pricesRequireConfirmation,
+      ),
+    });
   }
 
   Future<Uri> createChatUri() async {
@@ -32,7 +40,10 @@ class WhatsAppOrderService {
     return _digits(ApiConfig.whatsAppPhone);
   }
 
-  String buildOrderMessage(ShopCart cart) {
+  String buildOrderMessage(
+    ShopCart cart, {
+    bool pricesRequireConfirmation = false,
+  }) {
     final lines = <String>[
       'Salam, Technocare!',
       'Tətbiqdən aşağıdakı məhsulları sifariş vermək istəyirəm:',
@@ -59,6 +70,11 @@ class WhatsAppOrderService {
     }
 
     lines.add('Ümumi məbləğ: ${_money(cart.subtotal, cart.currencySymbol)}');
+    if (pricesRequireConfirmation) {
+      lines.add(
+        'Qeyd: Yekun qiymət Technocare nümayəndəsi tərəfindən təsdiqlənəcək.',
+      );
+    }
     lines.add('Zəhmət olmasa mövcudluğu və çatdırılmanı təsdiqləyin.');
     return lines.join('\n');
   }

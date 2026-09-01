@@ -47,3 +47,36 @@ class SiteProject {
     );
   }
 }
+
+class ProjectPage {
+  final List<SiteProject> items;
+  final int page;
+  final int pageSize;
+  final int total;
+  final int totalPages;
+  final bool isStale;
+  final DateTime? cachedAt;
+
+  const ProjectPage({
+    required this.items,
+    required this.page,
+    required this.pageSize,
+    required this.total,
+    required this.totalPages,
+    this.isStale = false,
+    this.cachedAt,
+  });
+
+  factory ProjectPage.fromJson(Map<String, dynamic> json) => ProjectPage(
+    items: (json['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((item) => SiteProject.fromJson(Map<String, dynamic>.from(item)))
+        .toList(),
+    page: (json['page'] as num?)?.toInt() ?? 1,
+    pageSize: (json['pageSize'] as num?)?.toInt() ?? 12,
+    total: (json['total'] as num?)?.toInt() ?? 0,
+    totalPages: (json['totalPages'] as num?)?.toInt() ?? 1,
+    isStale: json['_isStale'] == true,
+    cachedAt: DateTime.tryParse(json['_cachedAt']?.toString() ?? ''),
+  );
+}

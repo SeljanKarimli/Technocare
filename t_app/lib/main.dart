@@ -7,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'providers/shop_cart_provider.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/content_repository.dart';
+import 'repositories/projects_repository.dart';
 import 'repositories/shop_repository.dart';
 import 'screens/HomePage.dart';
 import 'services/whatsapp_order_service.dart';
@@ -19,6 +20,7 @@ Future<void> main() async {
   final authRepository = AuthRepository(apiClient);
   final contentRepository = ContentRepository(apiClient);
   final shopRepository = ShopRepository(apiClient);
+  final projectsRepository = ProjectsRepository(apiClient);
   final whatsAppOrderService = WhatsAppOrderService(shopRepository);
 
   runApp(
@@ -29,6 +31,7 @@ Future<void> main() async {
         Provider<AuthRepository>.value(value: authRepository),
         Provider<ContentRepository>.value(value: contentRepository),
         Provider<ShopRepository>.value(value: shopRepository),
+        Provider<ProjectsRepository>.value(value: projectsRepository),
         Provider<WhatsAppOrderService>.value(value: whatsAppOrderService),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
@@ -61,9 +64,9 @@ class TechnocareApp extends StatelessWidget {
       fontFamily: 'Inter',
       scaffoldBackgroundColor: const Color(0xFFF8FAF8),
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF59BE3F),
-        primary: const Color(0xFF3E8F2E),
-        secondary: const Color(0xFF59BE3F),
+        seedColor: const Color(0xFF2F7623),
+        primary: const Color(0xFF2F7623),
+        secondary: const Color(0xFF2F7623),
         surface: Colors.white,
       ),
       appBarTheme: const AppBarTheme(
@@ -92,12 +95,12 @@ class TechnocareApp extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(13),
-          borderSide: const BorderSide(color: Color(0xFF59BE3F), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF2F7623), width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF3E8F2E),
+          backgroundColor: const Color(0xFF2F7623),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
           shape: RoundedRectangleBorder(

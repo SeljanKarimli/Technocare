@@ -1,7 +1,5 @@
-import 'dart:async';
-
-import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,7 +27,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  StreamSubscription<Uri>? _linkSubscription;
 
   late final List<Widget> _screens = [
     LiveHomeScreen(onOpenShop: () => setState(() => _selectedIndex = 1)),
@@ -39,41 +36,6 @@ class _HomePageState extends State<HomePage> {
     const ProjectsPage(),
     const _ProfileGate(),
   ];
-
-  @override
-  void initState() {
-    super.initState();
-    final links = AppLinks();
-    _linkSubscription = links.uriLinkStream.listen(_handleAppLink);
-    links.getInitialLink().then((link) {
-      if (link != null) _handleAppLink(link);
-    });
-  }
-
-  @override
-  void dispose() {
-    _linkSubscription?.cancel();
-    super.dispose();
-  }
-
-  void _handleAppLink(Uri link) {
-    if (link.scheme != 'technocare' || link.host != 'checkout' || !mounted) {
-      return;
-    }
-    if (link.pathSegments.contains('success')) {
-      context.read<ShopCartProvider>().clear().catchError((_) {});
-      setState(() => _selectedIndex = 5);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sifarişiniz qəbul edildi.')),
-      );
-    } else if (link.pathSegments.contains('cancel')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ödəniş tamamlanmadı. Səbətiniz saxlanıldı.'),
-        ),
-      );
-    }
-  }
 
   Future<void> _openCart() async {
     await Navigator.push(
@@ -91,8 +53,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openWhatsAppChat() async {
-    final uri = await context.read<WhatsAppOrderService>().createChatUri();
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final service = context.read<WhatsAppOrderService>();
+    final uri = await service.createChatUri();
+    var opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    if (!opened && mounted) {
+      final phone = await service.resolveTechnocarePhone();
+      await Clipboard.setData(ClipboardData(text: '+$phone'));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('WhatsApp açılmadı. Əlaqə nömrəsi kopyalandı.'),
+        ),
+      );
+    }
   }
 
   @override
@@ -108,7 +82,7 @@ class _HomePageState extends State<HomePage> {
             'TECHNOCARE',
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              color: Color(0xFF3E8F2E),
+              color: Color(0xFF2F7623),
             ),
           ),
         ),
@@ -135,8 +109,9 @@ class _HomePageState extends State<HomePage> {
       ),
       body: IndexedStack(index: _selectedIndex, children: _screens),
       floatingActionButton: FloatingActionButton.small(
+        tooltip: 'WhatsApp ilə əlaqə',
         onPressed: _openWhatsAppChat,
-        backgroundColor: const Color(0xFF25D366),
+        backgroundColor: const Color(0xFF087A32),
         foregroundColor: Colors.white,
         child: const Icon(Icons.chat_outlined),
       ),
@@ -160,14 +135,14 @@ class _HomePageState extends State<HomePage> {
               onTabChange: (index) => setState(() => _selectedIndex = index),
               gap: 4,
               color: const Color(0xFF7A847D),
-              activeColor: const Color(0xFF3E8F2E),
+              activeColor: const Color(0xFF2F7623),
               tabBackgroundColor: const Color(0xFFEAF7E5),
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
               iconSize: 22,
               textStyle: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF3E8F2E),
+                color: Color(0xFF2F7623),
               ),
               tabs: const [
                 GButton(icon: Icons.home_outlined, text: 'Ana səhifə'),
@@ -209,7 +184,7 @@ class _ProfileGate extends StatelessWidget {
                   child: const Icon(
                     Icons.person_outline_rounded,
                     size: 48,
-                    color: Color(0xFF3E8F2E),
+                    color: Color(0xFF2F7623),
                   ),
                 ),
                 const SizedBox(height: 22),
