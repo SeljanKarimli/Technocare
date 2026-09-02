@@ -1,0 +1,38 @@
+workflows:
+  technocare-android-bundle:
+    name: Technocare Android App Bundle
+    instance_type: linux_x2
+    max_build_duration: 60
+    working_directory: t_app
+    environment:
+      flutter: stable
+      java: 17
+      vars:
+        API_BASE_URL: https://api.technocare.az/api
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: codex/live-shop
+          include: true
+          source: true
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Analyze Flutter source
+        script: flutter analyze --fatal-warnings
+      - name: Run Flutter tests
+        script: flutter test
+      - name: Build Android App Bundle
+        script: >-
+          flutter build appbundle --release
+          --dart-define=API_BASE_URL="$API_BASE_URL"
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/mapping/release/mapping.txt
+      - flutter_drive.log

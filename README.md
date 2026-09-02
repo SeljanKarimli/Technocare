@@ -31,6 +31,7 @@ flowchart LR
 | `backendMAIN.Tests/` | Backend contract, authorization, and sanitized-error tests |
 | `t_app/` | Flutter Android/iOS client |
 | `.github/workflows/ci.yml` | Backend, Flutter, and WordPress validation |
+| `codemagic.yaml` | Android App Bundle validation and Codemagic artifact build |
 
 ## Public API
 
