@@ -10,7 +10,8 @@ void main() {
         ProjectDefaults.items.every(
           (project) =>
               project.name.isNotEmpty &&
-              Uri.tryParse(project.primaryImage)?.hasAbsolutePath == true,
+              Uri.tryParse(project.primaryImage)?.hasAbsolutePath == true &&
+              project.content.length > 300,
         ),
         isTrue,
       );
