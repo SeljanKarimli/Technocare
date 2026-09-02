@@ -14,10 +14,7 @@ void main() {
 
   test('Azerbaijani service headings map to stable catalog keys', () {
     expect(
-      RequiredContentCatalog.canonicalKey(
-        'services',
-        'Avtomatika xidmətləri',
-      ),
+      RequiredContentCatalog.canonicalKey('services', 'Avtomatika xidmətləri'),
       'automation',
     );
   });
@@ -61,6 +58,10 @@ void main() {
       expect(content.items.first.body, contains('PLC proqramlaşdırılması'));
       expect(content.items[1].body, contains('PCB'));
       expect(content.items[2].body, contains('enerji səmərəliliyi'));
+      expect(
+        content.items.take(3).every((item) => item.imageUrl.isNotEmpty),
+        isTrue,
+      );
     },
   );
 
@@ -82,6 +83,7 @@ void main() {
         'Elektrik mühəndisliyi',
       ]);
       expect(content.items.every((item) => item.body.length > 200), isTrue);
+      expect(content.items.every((item) => item.imageUrl.isNotEmpty), isTrue);
     },
   );
 

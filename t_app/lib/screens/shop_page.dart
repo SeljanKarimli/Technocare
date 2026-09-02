@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/image_url.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 import '../repositories/shop_repository.dart';
@@ -192,7 +193,9 @@ class _ShopPageState extends State<ShopPage> {
     if (!mounted) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ShopProductDetailPage(product: product)),
+      MaterialPageRoute(
+        builder: (_) => ShopProductDetailPage(product: product),
+      ),
     );
   }
 
@@ -339,8 +342,7 @@ class _ShopPageState extends State<ShopPage> {
             ],
           ),
         ),
-        if (_isStale)
-          _ShopOfflineBanner(cachedAt: _cachedAt),
+        if (_isStale) _ShopOfflineBanner(cachedAt: _cachedAt),
         if (_showSuggestions && _suggestions.isNotEmpty)
           Material(
             color: Colors.white,
@@ -577,7 +579,9 @@ class _ShopProductCard extends StatelessWidget {
                               ),
                             )
                           : CachedNetworkImage(
-                              imageUrl: product.primaryImage,
+                              imageUrl: AppImageUrl.resolve(
+                                product.primaryImage,
+                              ),
                               fit: BoxFit.contain,
                               placeholder: (_, __) =>
                                   Container(color: const Color(0xFFF4F6F3)),

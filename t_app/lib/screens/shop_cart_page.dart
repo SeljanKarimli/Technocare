@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/image_url.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 import '../services/whatsapp_order_service.dart';
@@ -258,11 +259,10 @@ class _CartLine extends StatelessWidget {
               child: item.product.primaryImage.isEmpty
                   ? const Icon(Icons.inventory_2_outlined)
                   : CachedNetworkImage(
-                      imageUrl: item.product.primaryImage,
+                      imageUrl: AppImageUrl.resolve(item.product.primaryImage),
                       fit: BoxFit.contain,
-                      placeholder: (_, __) => const ColoredBox(
-                        color: Color(0xFFF4F6F3),
-                      ),
+                      placeholder: (_, __) =>
+                          const ColoredBox(color: Color(0xFFF4F6F3)),
                       errorWidget: (_, __, ___) => const ColoredBox(
                         color: Color(0xFFF4F6F3),
                         child: Icon(Icons.inventory_2_outlined),

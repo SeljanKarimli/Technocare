@@ -28,8 +28,15 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
+  void _selectTab(int index) => setState(() => _selectedIndex = index);
+
   late final List<Widget> _screens = [
-    LiveHomeScreen(onOpenShop: () => setState(() => _selectedIndex = 1)),
+    LiveHomeScreen(
+      onOpenShop: () => _selectTab(1),
+      onOpenServices: () => _selectTab(2),
+      onOpenEducation: () => _selectTab(3),
+      onOpenProjects: () => _selectTab(4),
+    ),
     const ShopPage(),
     const CategoriesPage(),
     const EducationPage(),
@@ -56,7 +63,9 @@ class _HomePageState extends State<HomePage> {
     final service = context.read<WhatsAppOrderService>();
     final uri = await service.createChatUri();
     var opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened) opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    if (!opened) {
+      opened = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    }
     if (!opened && mounted) {
       final phone = await service.resolveTechnocarePhone();
       await Clipboard.setData(ClipboardData(text: '+$phone'));
@@ -132,7 +141,7 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 9),
             child: GNav(
               selectedIndex: _selectedIndex,
-              onTabChange: (index) => setState(() => _selectedIndex = index),
+              onTabChange: _selectTab,
               gap: 4,
               color: const Color(0xFF7A847D),
               activeColor: const Color(0xFF2F7623),

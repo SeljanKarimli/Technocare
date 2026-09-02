@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/image_url.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 
@@ -48,11 +49,10 @@ class ShopProductDetailPage extends StatelessWidget {
                       ),
                     )
                   : CachedNetworkImage(
-                      imageUrl: product.primaryImage,
+                      imageUrl: AppImageUrl.resolve(product.primaryImage),
                       fit: BoxFit.contain,
-                      placeholder: (_, __) => const ColoredBox(
-                        color: Color(0xFFF4F6F3),
-                      ),
+                      placeholder: (_, __) =>
+                          const ColoredBox(color: Color(0xFFF4F6F3)),
                       errorWidget: (_, __, ___) => const ColoredBox(
                         color: Color(0xFFF4F6F3),
                         child: Icon(

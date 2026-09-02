@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/image_url.dart';
 import '../models/home_content.dart';
 import '../models/shop_models.dart';
 import '../repositories/shop_repository.dart';
@@ -12,8 +13,17 @@ import 'shop_product_detail_page.dart';
 
 class LiveHomeScreen extends StatefulWidget {
   final VoidCallback onOpenShop;
+  final VoidCallback onOpenServices;
+  final VoidCallback onOpenEducation;
+  final VoidCallback onOpenProjects;
 
-  const LiveHomeScreen({super.key, required this.onOpenShop});
+  const LiveHomeScreen({
+    super.key,
+    required this.onOpenShop,
+    required this.onOpenServices,
+    required this.onOpenEducation,
+    required this.onOpenProjects,
+  });
 
   @override
   State<LiveHomeScreen> createState() => _LiveHomeScreenState();
@@ -68,6 +78,9 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
               return _HomeSectionView(
                 section: snapshot.data!.sections[sectionIndex],
                 onOpenShop: widget.onOpenShop,
+                onOpenServices: widget.onOpenServices,
+                onOpenEducation: widget.onOpenEducation,
+                onOpenProjects: widget.onOpenProjects,
               );
             },
           ),
@@ -80,8 +93,17 @@ class _LiveHomeScreenState extends State<LiveHomeScreen> {
 class _HomeSectionView extends StatelessWidget {
   final HomeSection section;
   final VoidCallback onOpenShop;
+  final VoidCallback onOpenServices;
+  final VoidCallback onOpenEducation;
+  final VoidCallback onOpenProjects;
 
-  const _HomeSectionView({required this.section, required this.onOpenShop});
+  const _HomeSectionView({
+    required this.section,
+    required this.onOpenShop,
+    required this.onOpenServices,
+    required this.onOpenEducation,
+    required this.onOpenProjects,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -92,11 +114,19 @@ class _HomeSectionView extends StatelessWidget {
         section: section,
         onOpenShop: onOpenShop,
       ),
-      'brands' => _BrandSection(section: section),
-      'best_sellers' => _BestSellerSection(section: section),
-      'services' => _DarkCardSection(section: section),
+      'brands' => _BrandSection(section: section, onOpenShop: onOpenShop),
+      'best_sellers' => _BestSellerSection(
+        section: section,
+        onOpenShop: onOpenShop,
+      ),
+      'services' => _DarkCardSection(section: section, onOpen: onOpenServices),
+      'education' => _DarkCardSection(
+        section: section,
+        onOpen: onOpenEducation,
+      ),
       'quality' => _QualitySection(section: section),
-      'projects' || 'partners' => _GallerySection(section: section),
+      'projects' => _GallerySection(section: section, onOpen: onOpenProjects),
+      'partners' => _GallerySection(section: section),
       'contact' => const SizedBox.shrink(),
       _ => const SizedBox.shrink(),
     };
@@ -119,7 +149,7 @@ class _HeroSection extends StatelessWidget {
         children: [
           if (image.isNotEmpty)
             CachedNetworkImage(
-              imageUrl: image,
+              imageUrl: AppImageUrl.resolve(image),
               fit: BoxFit.cover,
               placeholder: (_, __) => const _HeroBackdrop(),
               errorWidget: (_, __, ___) => const _HeroBackdrop(),
@@ -256,13 +286,12 @@ class _AboutSection extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
               child: CachedNetworkImage(
-                imageUrl: section.images.first,
+                imageUrl: AppImageUrl.resolve(section.images.first),
                 height: 220,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                placeholder: (_, __) => const ColoredBox(
-                  color: Color(0xFFEAF0EB),
-                ),
+                placeholder: (_, __) =>
+                    const ColoredBox(color: Color(0xFFEAF0EB)),
                 errorWidget: (_, __, ___) => const ColoredBox(
                   color: Color(0xFFEAF0EB),
                   child: Icon(Icons.image_not_supported_outlined),
@@ -365,9 +394,19 @@ class _CategorySection extends StatelessWidget {
                                 ),
                               )
                             : CachedNetworkImage(
-                                imageUrl: item.imageUrl,
+                                imageUrl: AppImageUrl.resolve(item.imageUrl),
                                 width: double.infinity,
                                 fit: BoxFit.cover,
+                                placeholder: (_, __) =>
+                                    const ColoredBox(color: Color(0xFFEAF0EB)),
+                                errorWidget: (_, __, ___) => const ColoredBox(
+                                  color: Color(0xFFEAF0EB),
+                                  child: Icon(
+                                    Icons.precision_manufacturing_outlined,
+                                    color: Color(0xFF2F7623),
+                                    size: 44,
+                                  ),
+                                ),
                               ),
                       ),
                     ),
@@ -396,7 +435,8 @@ class _CategorySection extends StatelessWidget {
 
 class _BrandSection extends StatelessWidget {
   final HomeSection section;
-  const _BrandSection({required this.section});
+  final VoidCallback onOpenShop;
+  const _BrandSection({required this.section, required this.onOpenShop});
 
   @override
   Widget build(BuildContext context) {
@@ -404,27 +444,35 @@ class _BrandSection extends StatelessWidget {
     return _SectionShell(
       section: section,
       background: const Color(0xFFF5F7F4),
+      trailing: TextButton(
+        onPressed: onOpenShop,
+        child: const Text('Mağazaya bax'),
+      ),
       child: Wrap(
         spacing: 10,
         runSpacing: 10,
         children: brands
             .take(20)
             .map(
-              (brand) => Container(
-                width: (MediaQuery.sizeOf(context).width - 58) / 2,
-                height: 70,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E9E3)),
-                ),
-                child: Text(
-                  brand.name,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF37413B),
+              (brand) => InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onOpenShop,
+                child: Container(
+                  width: (MediaQuery.sizeOf(context).width - 58) / 2,
+                  height: 70,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E9E3)),
+                  ),
+                  child: Text(
+                    brand.name,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF37413B),
+                    ),
                   ),
                 ),
               ),
@@ -437,13 +485,15 @@ class _BrandSection extends StatelessWidget {
 
 class _BestSellerSection extends StatelessWidget {
   final HomeSection section;
-  const _BestSellerSection({required this.section});
+  final VoidCallback onOpenShop;
+  const _BestSellerSection({required this.section, required this.onOpenShop});
 
   @override
   Widget build(BuildContext context) {
     final products = section.items.map(ShopProduct.fromJson).toList();
     return _SectionShell(
       section: section,
+      trailing: TextButton(onPressed: onOpenShop, child: const Text('Hamısı')),
       child: SizedBox(
         height: 310,
         child: ListView.separated(
@@ -496,9 +546,19 @@ class _CompactProductCard extends StatelessWidget {
                         ),
                       )
                     : CachedNetworkImage(
-                        imageUrl: product.primaryImage,
+                        imageUrl: AppImageUrl.resolve(product.primaryImage),
                         width: double.infinity,
                         fit: BoxFit.contain,
+                        placeholder: (_, __) =>
+                            const ColoredBox(color: Color(0xFFF4F6F3)),
+                        errorWidget: (_, __, ___) => const ColoredBox(
+                          color: Color(0xFFF4F6F3),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            size: 48,
+                            color: Color(0xFF69736C),
+                          ),
+                        ),
                       ),
               ),
             ),
@@ -546,7 +606,8 @@ class _CompactProductCard extends StatelessWidget {
 
 class _DarkCardSection extends StatelessWidget {
   final HomeSection section;
-  const _DarkCardSection({required this.section});
+  final VoidCallback onOpen;
+  const _DarkCardSection({required this.section, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -555,40 +616,46 @@ class _DarkCardSection extends StatelessWidget {
         : section.links;
     return _SectionShell(
       section: section,
+      trailing: TextButton(onPressed: onOpen, child: const Text('Hamısı')),
       child: Column(
         children: links
             .take(8)
             .map(
-              (link) => Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
+              (link) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Material(
                   color: const Color(0xFF111917),
                   borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.engineering_outlined,
-                      color: Color(0xFF72CE50),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        link.label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: onOpen,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.engineering_outlined,
+                            color: Color(0xFF72CE50),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              link.label,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white54,
+                            size: 18,
+                          ),
+                        ],
                       ),
                     ),
-                    const Icon(
-                      Icons.arrow_forward,
-                      color: Colors.white54,
-                      size: 18,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             )
@@ -613,7 +680,7 @@ class _QualitySection extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: CachedNetworkImage(
-                imageUrl: section.images.first,
+                imageUrl: AppImageUrl.resolve(section.images.first),
                 height: 220,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -650,30 +717,37 @@ class _QualitySection extends StatelessWidget {
 
 class _GallerySection extends StatelessWidget {
   final HomeSection section;
-  const _GallerySection({required this.section});
+  final VoidCallback? onOpen;
+  const _GallerySection({required this.section, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       section: section,
+      trailing: onOpen == null
+          ? null
+          : TextButton(onPressed: onOpen, child: const Text('Hamısı')),
       child: SizedBox(
         height: 210,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: section.images.length,
           separatorBuilder: (_, __) => const SizedBox(width: 12),
-          itemBuilder: (_, index) => ClipRRect(
+          itemBuilder: (_, index) => InkWell(
             borderRadius: BorderRadius.circular(14),
-            child: CachedNetworkImage(
-              imageUrl: section.images[index],
-              width: 260,
-              fit: BoxFit.cover,
-              placeholder: (_, __) => const ColoredBox(
-                color: Color(0xFFEAF0EB),
-              ),
-              errorWidget: (_, __, ___) => const ColoredBox(
-                color: Color(0xFFEAF0EB),
-                child: Icon(Icons.image_not_supported_outlined),
+            onTap: onOpen,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: CachedNetworkImage(
+                imageUrl: AppImageUrl.resolve(section.images[index]),
+                width: 260,
+                fit: BoxFit.cover,
+                placeholder: (_, __) =>
+                    const ColoredBox(color: Color(0xFFEAF0EB)),
+                errorWidget: (_, __, ___) => const ColoredBox(
+                  color: Color(0xFFEAF0EB),
+                  child: Icon(Icons.image_not_supported_outlined),
+                ),
               ),
             ),
           ),

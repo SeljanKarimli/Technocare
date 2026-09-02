@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../core/image_url.dart';
 import '../models/site_project.dart';
 import 'application_form_s_page.dart';
 
@@ -18,7 +19,7 @@ class ProjectDetailPage extends StatelessWidget {
         children: [
           if (project.primaryImage.isNotEmpty)
             CachedNetworkImage(
-              imageUrl: project.primaryImage,
+              imageUrl: AppImageUrl.resolve(project.primaryImage),
               width: double.infinity,
               height: 250,
               fit: BoxFit.cover,
@@ -90,7 +91,9 @@ class ProjectDetailPage extends StatelessWidget {
                       itemBuilder: (_, index) => ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: CachedNetworkImage(
-                          imageUrl: project.allImages.skip(1).elementAt(index),
+                          imageUrl: AppImageUrl.resolve(
+                            project.allImages.skip(1).elementAt(index),
+                          ),
                           width: 160,
                           height: 120,
                           fit: BoxFit.cover,

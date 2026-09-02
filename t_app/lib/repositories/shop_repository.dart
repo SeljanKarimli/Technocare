@@ -9,12 +9,12 @@ import '../models/home_content.dart';
 import '../models/shop_models.dart';
 
 class ShopRepository {
-  static const _homeCacheKey = 'live_home.payload';
-  static const _homeCacheTimeKey = 'live_home.cachedAt';
+  static const _homeCacheKey = 'live_home.payload.v2';
+  static const _homeCacheTimeKey = 'live_home.cachedAt.v2';
   static const _recentSearchesKey = 'shop.recentSearches';
   static const _guestCartKey = 'shop.guestCart.v1';
-  static const _productPageCachePrefix = 'shop.products.v1.';
-  static const _productDetailCachePrefix = 'shop.product.v1.';
+  static const _productPageCachePrefix = 'shop.products.v2.';
+  static const _productDetailCachePrefix = 'shop.product.v2.';
   final ApiClient _api;
   Future<void> _cartQueue = Future<void>.value();
   bool lastCartRefreshUsedStaleData = false;
@@ -32,12 +32,10 @@ class ShopRepository {
         cachedJson != null &&
         cachedAt != null &&
         DateTime.now().difference(cachedAt) < ApiConfig.contentFreshness) {
-      return HomeContent.fromJson(
-        {
-          ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
-          '_cachedAt': cachedAt.toIso8601String(),
-        },
-      );
+      return HomeContent.fromJson({
+        ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+        '_cachedAt': cachedAt.toIso8601String(),
+      });
     }
 
     try {
@@ -52,13 +50,11 @@ class ShopRepository {
       return HomeContent.fromJson(data);
     } catch (_) {
       if (cachedJson != null) {
-        return HomeContent.fromJson(
-          {
-            ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
-            '_isStale': true,
-            if (cachedAt != null) '_cachedAt': cachedAt.toIso8601String(),
-          },
-        );
+        return HomeContent.fromJson({
+          ...Map<String, dynamic>.from(jsonDecode(cachedJson) as Map),
+          '_isStale': true,
+          if (cachedAt != null) '_cachedAt': cachedAt.toIso8601String(),
+        });
       }
       rethrow;
     }
