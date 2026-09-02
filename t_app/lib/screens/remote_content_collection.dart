@@ -1,9 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/site_content.dart';
 import '../repositories/content_repository.dart';
 
@@ -96,7 +95,6 @@ class _RemoteContentCollectionState extends State<RemoteContentCollection> {
                 MaterialPageRoute(
                   builder: (_) => _ContentDetailPage(
                     item: item,
-                    fallbackIcon: widget.fallbackIcon,
                     applyPage: widget.applyPage,
                   ),
                 ),
@@ -141,19 +139,11 @@ class _ContentCard extends StatelessWidget {
                       color: const Color(0xFF2F7623),
                     ),
                   )
-                : CachedNetworkImage(
-                    imageUrl: AppImageUrl.resolve(item.imageUrl),
+                : AppRemoteImage(
+                    source: item.imageUrl,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        const ColoredBox(color: Color(0xFFEAF0EB)),
-                    errorWidget: (_, __, ___) => ColoredBox(
-                      color: const Color(0xFFEAF0EB),
-                      child: Icon(
-                        fallbackIcon,
-                        size: 44,
-                        color: const Color(0xFF2F7623),
-                      ),
-                    ),
+                    targetWidth: 480,
+                    semanticLabel: '${item.title} bölməsinin şəkli',
                   ),
           ),
           Expanded(
@@ -202,14 +192,9 @@ class _ContentCard extends StatelessWidget {
 
 class _ContentDetailPage extends StatelessWidget {
   final SiteContentItem item;
-  final IconData fallbackIcon;
   final Widget Function(BuildContext context, SiteContentItem item) applyPage;
 
-  const _ContentDetailPage({
-    required this.item,
-    required this.fallbackIcon,
-    required this.applyPage,
-  });
+  const _ContentDetailPage({required this.item, required this.applyPage});
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -220,18 +205,13 @@ class _ContentDetailPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (item.imageUrl.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: AppImageUrl.resolve(item.imageUrl),
+            AppRemoteImage(
+              source: item.imageUrl,
               width: double.infinity,
               height: 250,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => SizedBox(
-                height: 220,
-                child: ColoredBox(
-                  color: const Color(0xFFEAF0EB),
-                  child: Icon(fallbackIcon, size: 60),
-                ),
-              ),
+              targetWidth: 1200,
+              semanticLabel: '${item.title} bölməsinin əsas şəkli',
             ),
           Padding(
             padding: const EdgeInsets.all(20),

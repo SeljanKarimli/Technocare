@@ -1,10 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/home_content.dart';
 import '../models/shop_models.dart';
 import '../repositories/shop_repository.dart';
@@ -148,11 +147,12 @@ class _HeroSection extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (image.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: AppImageUrl.resolve(image),
+            AppRemoteImage(
+              source: image,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const _HeroBackdrop(),
-              errorWidget: (_, __, ___) => const _HeroBackdrop(),
+              targetWidth: 1400,
+              semanticLabel: '${section.title} üçün əsas şəkil',
+              placeholderVariant: AppImagePlaceholderVariant.hero,
             )
           else
             const _HeroBackdrop(),
@@ -285,17 +285,13 @@ class _AboutSection extends StatelessWidget {
           if (section.images.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: CachedNetworkImage(
-                imageUrl: AppImageUrl.resolve(section.images.first),
+              child: AppRemoteImage(
+                source: section.images.first,
                 height: 220,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                placeholder: (_, __) =>
-                    const ColoredBox(color: Color(0xFFEAF0EB)),
-                errorWidget: (_, __, ___) => const ColoredBox(
-                  color: Color(0xFFEAF0EB),
-                  child: Icon(Icons.image_not_supported_outlined),
-                ),
+                targetWidth: 1000,
+                semanticLabel: '${section.title} bölməsinin şəkli',
               ),
             ),
           if (section.metrics.isNotEmpty) ...[
@@ -393,20 +389,13 @@ class _CategorySection extends StatelessWidget {
                                   size: 44,
                                 ),
                               )
-                            : CachedNetworkImage(
-                                imageUrl: AppImageUrl.resolve(item.imageUrl),
+                            : AppRemoteImage(
+                                source: item.imageUrl,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    const ColoredBox(color: Color(0xFFEAF0EB)),
-                                errorWidget: (_, __, ___) => const ColoredBox(
-                                  color: Color(0xFFEAF0EB),
-                                  child: Icon(
-                                    Icons.precision_manufacturing_outlined,
-                                    color: Color(0xFF2F7623),
-                                    size: 44,
-                                  ),
-                                ),
+                                targetWidth: 500,
+                                semanticLabel:
+                                    '${item.name} kateqoriyasının şəkli',
                               ),
                       ),
                     ),
@@ -545,20 +534,13 @@ class _CompactProductCard extends StatelessWidget {
                           color: Colors.grey,
                         ),
                       )
-                    : CachedNetworkImage(
-                        imageUrl: AppImageUrl.resolve(product.primaryImage),
+                    : AppRemoteImage(
+                        source: product.primaryImage,
                         width: double.infinity,
                         fit: BoxFit.contain,
-                        placeholder: (_, __) =>
-                            const ColoredBox(color: Color(0xFFF4F6F3)),
-                        errorWidget: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFFF4F6F3),
-                          child: Icon(
-                            Icons.inventory_2_outlined,
-                            size: 48,
-                            color: Color(0xFF69736C),
-                          ),
-                        ),
+                        targetWidth: 600,
+                        semanticLabel: '${product.name} məhsulunun şəkli',
+                        placeholderVariant: AppImagePlaceholderVariant.product,
                       ),
               ),
             ),
@@ -679,11 +661,13 @@ class _QualitySection extends StatelessWidget {
           if (section.images.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: CachedNetworkImage(
-                imageUrl: AppImageUrl.resolve(section.images.first),
+              child: AppRemoteImage(
+                source: section.images.first,
                 height: 220,
                 width: double.infinity,
                 fit: BoxFit.cover,
+                targetWidth: 1000,
+                semanticLabel: '${section.title} bölməsinin şəkli',
               ),
             ),
           const SizedBox(height: 16),
@@ -738,16 +722,12 @@ class _GallerySection extends StatelessWidget {
             onTap: onOpen,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: CachedNetworkImage(
-                imageUrl: AppImageUrl.resolve(section.images[index]),
+              child: AppRemoteImage(
+                source: section.images[index],
                 width: 260,
                 fit: BoxFit.cover,
-                placeholder: (_, __) =>
-                    const ColoredBox(color: Color(0xFFEAF0EB)),
-                errorWidget: (_, __, ___) => const ColoredBox(
-                  color: Color(0xFFEAF0EB),
-                  child: Icon(Icons.image_not_supported_outlined),
-                ),
+                targetWidth: 700,
+                semanticLabel: '${section.title} şəkli ${index + 1}',
               ),
             ),
           ),

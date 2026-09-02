@@ -51,6 +51,16 @@ builder.Services.AddHostedService<UserIndexInitializer>();
 builder.Services.AddHostedService<AdminRoleBootstrapper>();
 
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("TechnocareMedia", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("TechnocareAppMedia/1.0");
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,
+    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+});
 builder.Services.AddHttpClient<ITechnocareSiteClient, TechnocareSiteClient>((serviceProvider, client) =>
 {
     var settings = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<TechnocareSiteOptions>>().Value;
@@ -92,7 +102,10 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddResponseCaching();
+builder.Services.AddResponseCaching(options =>
+{
+    options.MaximumBodySize = 16 * 1024 * 1024;
+});
 builder.Services.AddHealthChecks()
     .AddCheck<TechnocareSiteHealthCheck>("technocare-site", tags: ["ready"])
     .AddCheck<MongoDbHealthCheck>("mongodb", tags: ["ready"]);

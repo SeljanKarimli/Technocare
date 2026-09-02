@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 import '../repositories/shop_repository.dart';
@@ -578,21 +577,13 @@ class _ShopProductCard extends StatelessWidget {
                                 color: Colors.grey,
                               ),
                             )
-                          : CachedNetworkImage(
-                              imageUrl: AppImageUrl.resolve(
-                                product.primaryImage,
-                              ),
+                          : AppRemoteImage(
+                              source: product.primaryImage,
                               fit: BoxFit.contain,
-                              placeholder: (_, __) =>
-                                  Container(color: const Color(0xFFF4F6F3)),
-                              errorWidget: (_, __, ___) => const ColoredBox(
-                                color: Color(0xFFF4F6F3),
-                                child: Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 48,
-                                  color: Color(0xFF69736C),
-                                ),
-                              ),
+                              targetWidth: 600,
+                              semanticLabel: '${product.name} məhsulunun şəkli',
+                              placeholderVariant:
+                                  AppImagePlaceholderVariant.product,
                             ),
                     ),
                     if (product.onSale)

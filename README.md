@@ -58,6 +58,7 @@ Backend gateway:
 | Public | `GET /api/v1/content/projects`, `/services`, `/education` |
 | Public | `GET /api/v1/shop/products`, `/products/{id}`, `/categories`, `/brands` |
 | Public | `GET /api/v1/shop/suggestions?q=&limit=5` |
+| Public media | `GET /api/v1/media?url=` (only Technocare upload images) |
 | JWT, retained/inactive in the guest flow | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
 | JWT | `/api/notifications/my-notifications` |
 | Public submission | `/api/serviceapplications`, `/api/educationapplications` |

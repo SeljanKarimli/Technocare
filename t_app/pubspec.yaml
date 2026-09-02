@@ -1,7 +1,7 @@
 name: technocare
 description: "Sizin mühəndislik həlliniz"
 publish_to: 'none'
-version: "2.1.0+15"
+version: "2.1.1+16"
 
 environment:
   sdk: ^3.8.1
@@ -33,6 +33,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/technocare.png
+    - assets/images/content/
+    - assets/images/projects/
     - assets/icons/app_icon.png
 
 flutter_launcher_icons:

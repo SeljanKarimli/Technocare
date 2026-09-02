@@ -90,6 +90,17 @@ public sealed class ApiContractTests
     }
 
     [Theory]
+    [InlineData("https://technocare.az/wp-content/uploads/2024/04/Azərbaycan.png", true)]
+    [InlineData("https://technocare.az/wp-content/uploads/manual.pdf", false)]
+    [InlineData("https://technocare.az/layiheler/project.webp", false)]
+    [InlineData("https://technocare.az.evil.example/wp-content/uploads/image.png", false)]
+    [InlineData("http://technocare.az/wp-content/uploads/image.png", false)]
+    public void MediaProxy_OnlyAllowsTechnocareUploadImages(string value, bool expected)
+    {
+        Assert.Equal(expected, MediaProxySource.TryNormalize(value, out _));
+    }
+
+    [Theory]
     [InlineData(nameof(ShopController.Cart))]
     [InlineData(nameof(ShopController.AddCartItem))]
     [InlineData(nameof(ShopController.CheckoutSession))]

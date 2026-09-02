@@ -59,7 +59,11 @@ void main() {
       expect(content.items[1].body, contains('PCB'));
       expect(content.items[2].body, contains('enerji səmərəliliyi'));
       expect(
-        content.items.take(3).every((item) => item.imageUrl.isNotEmpty),
+        content.items
+            .take(3)
+            .every(
+              (item) => item.imageUrl.startsWith('assets/images/content/'),
+            ),
         isTrue,
       );
     },
@@ -83,7 +87,12 @@ void main() {
         'Elektrik mühəndisliyi',
       ]);
       expect(content.items.every((item) => item.body.length > 200), isTrue);
-      expect(content.items.every((item) => item.imageUrl.isNotEmpty), isTrue);
+      expect(
+        content.items.every(
+          (item) => item.imageUrl.startsWith('assets/images/content/'),
+        ),
+        isTrue,
+      );
     },
   );
 

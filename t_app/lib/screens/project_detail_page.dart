@@ -1,7 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/site_project.dart';
 import 'application_form_s_page.dart';
 
@@ -18,26 +17,14 @@ class ProjectDetailPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (project.primaryImage.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: AppImageUrl.resolve(project.primaryImage),
+            AppRemoteImage(
+              source: project.primaryImage,
               width: double.infinity,
               height: 250,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const SizedBox(
-                height: 250,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              errorWidget: (_, __, ___) => const SizedBox(
-                height: 250,
-                child: ColoredBox(
-                  color: Color(0xFFEAF0EB),
-                  child: Icon(
-                    Icons.factory_outlined,
-                    size: 64,
-                    color: Color(0xFF2F7623),
-                  ),
-                ),
-              ),
+              targetWidth: 1200,
+              semanticLabel: '${project.name} layihəsinin əsas şəkli',
+              placeholderVariant: AppImagePlaceholderVariant.project,
             ),
           Padding(
             padding: const EdgeInsets.all(20),
@@ -75,7 +62,7 @@ class ProjectDetailPage extends StatelessWidget {
                     style: const TextStyle(fontSize: 15, height: 1.5),
                   ),
                 ],
-                if (project.allImages.skip(1).isNotEmpty) ...[
+                if (project.images.isNotEmpty) ...[
                   const SizedBox(height: 22),
                   const Text(
                     'Qalereya',
@@ -86,22 +73,38 @@ class ProjectDetailPage extends StatelessWidget {
                     height: 120,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: project.allImages.skip(1).length,
+                      itemCount: project.images.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 10),
-                      itemBuilder: (_, index) => ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: CachedNetworkImage(
-                          imageUrl: AppImageUrl.resolve(
-                            project.allImages.skip(1).elementAt(index),
+                      itemBuilder: (_, index) => Semantics(
+                        button: true,
+                        label: '${project.name} qalereyası, şəkil ${index + 1}',
+                        child: InkWell(
+                          key: ValueKey<String>(
+                            'project-gallery-thumbnail-$index',
                           ),
-                          width: 160,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const SizedBox(
-                            width: 160,
-                            child: ColoredBox(
-                              color: Color(0xFFEAF0EB),
-                              child: Icon(Icons.image_not_supported_outlined),
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => _ProjectGalleryPage(
+                                projectName: project.name,
+                                images: project.images,
+                                initialIndex: index,
+                              ),
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: AppRemoteImage(
+                              source: project.images[index],
+                              width: 160,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              targetWidth: 480,
+                              semanticLabel:
+                                  '${project.name} layihəsinin ${index + 1}-ci qalereya şəkli',
+                              placeholderVariant:
+                                  AppImagePlaceholderVariant.project,
                             ),
                           ),
                         ),
@@ -127,6 +130,101 @@ class ProjectDetailPage extends StatelessWidget {
           ),
         ],
       ),
+    ),
+  );
+}
+
+class _ProjectGalleryPage extends StatefulWidget {
+  final String projectName;
+  final List<String> images;
+  final int initialIndex;
+
+  const _ProjectGalleryPage({
+    required this.projectName,
+    required this.images,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_ProjectGalleryPage> createState() => _ProjectGalleryPageState();
+}
+
+class _ProjectGalleryPageState extends State<_ProjectGalleryPage> {
+  late final PageController _controller;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.black,
+    appBar: AppBar(
+      backgroundColor: Colors.black,
+      foregroundColor: Colors.white,
+      title: Text(widget.projectName),
+    ),
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: widget.images.length,
+          onPageChanged: (index) => setState(() => _currentIndex = index),
+          itemBuilder: (_, index) => InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4,
+            child: Center(
+              child: AppRemoteImage(
+                source: widget.images[index],
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.contain,
+                targetWidth: 1600,
+                semanticLabel:
+                    '${widget.projectName} qalereyası, şəkil ${index + 1}',
+                placeholderVariant: AppImagePlaceholderVariant.project,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 24,
+          child: Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
+                child: Text(
+                  '${_currentIndex + 1} / ${widget.images.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }

@@ -1,7 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/project_defaults.dart';
 import '../models/site_project.dart';
 import 'project_detail_page.dart';
@@ -138,23 +137,12 @@ class _ProjectCard extends StatelessWidget {
                           color: Color(0xFF2F7623),
                         ),
                       )
-                    : CachedNetworkImage(
-                        imageUrl: AppImageUrl.resolve(project.primaryImage),
+                    : AppRemoteImage(
+                        source: project.primaryImage,
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => const ColoredBox(
-                          color: Color(0xFFEAF0EB),
-                          child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                        errorWidget: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFFEAF0EB),
-                          child: Icon(
-                            Icons.factory_outlined,
-                            size: 44,
-                            color: Color(0xFF2F7623),
-                          ),
-                        ),
+                        targetWidth: 600,
+                        semanticLabel: '${project.name} layihəsinin şəkli',
+                        placeholderVariant: AppImagePlaceholderVariant.project,
                       ),
               ),
             ),

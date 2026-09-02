@@ -1,10 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/image_url.dart';
+import '../core/app_remote_image.dart';
 import '../models/shop_models.dart';
 import '../providers/shop_cart_provider.dart';
 import '../services/whatsapp_order_service.dart';
@@ -258,15 +257,13 @@ class _CartLine extends StatelessWidget {
               height: 88,
               child: item.product.primaryImage.isEmpty
                   ? const Icon(Icons.inventory_2_outlined)
-                  : CachedNetworkImage(
-                      imageUrl: AppImageUrl.resolve(item.product.primaryImage),
+                  : AppRemoteImage(
+                      source: item.product.primaryImage,
                       fit: BoxFit.contain,
-                      placeholder: (_, __) =>
-                          const ColoredBox(color: Color(0xFFF4F6F3)),
-                      errorWidget: (_, __, ___) => const ColoredBox(
-                        color: Color(0xFFF4F6F3),
-                        child: Icon(Icons.inventory_2_outlined),
-                      ),
+                      targetWidth: 260,
+                      semanticLabel:
+                          '${item.product.name} məhsulunun səbətdəki şəkli',
+                      placeholderVariant: AppImagePlaceholderVariant.product,
                     ),
             ),
           ),

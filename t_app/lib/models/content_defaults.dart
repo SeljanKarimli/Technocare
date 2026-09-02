@@ -105,7 +105,10 @@ class RequiredContentCatalog {
     title: fallback.title,
     summary: _richer(fallback.summary, remote.summary),
     body: _richer(fallback.body, remote.body),
-    imageUrl: remote.imageUrl.isEmpty ? fallback.imageUrl : remote.imageUrl,
+    // The six required cards use bundled thumbnails so they stay available
+    // offline and are visually consistent. Remote-only cards keep their own
+    // live image when they are appended below.
+    imageUrl: fallback.imageUrl,
     images: remote.images.isEmpty ? fallback.images : remote.images,
     url: remote.url.isEmpty ? fallback.url : remote.url,
   );
@@ -146,8 +149,7 @@ class RequiredContentCatalog {
           'PLC, SCADA və HMI sistemləri, sensor–aktuator inteqrasiyası və sənaye proseslərinin modernizasiyası.',
       body:
           'Technocare sənaye proseslərinin avtomatlaşdırılması üçün layihələndirmədən istismara verməyə qədər tam mühəndislik həlləri təqdim edir. Mövcud sistemlər analiz olunur, idarəetmə məntiqi hazırlanır, avadanlıqlar inteqrasiya edilir və sistem real iş şəraitində sınaqdan keçirilir.\n\nXidmətlərə PLC proqramlaşdırılması, SCADA və HMI ekranlarının hazırlanması, sensor və aktuatorların inteqrasiyası, elektrik idarəetmə panelləri, nasazlıq diaqnostikası və mövcud avtomatika sistemlərinin modernizasiyası daxildir.',
-      imageUrl:
-          'https://technocare.az/wp-content/uploads/2025/05/DSC1538-scaled.jpg',
+      imageUrl: 'assets/images/content/service-automation.webp',
       images: <String>[],
       url: 'https://technocare.az/xidmetler',
     ),
@@ -158,7 +160,7 @@ class RequiredContentCatalog {
           'Sənaye elektronikasının diaqnostikası və təmiri, dövrə və PCB həlləri, sensor və mikrokontroller sistemləri.',
       body:
           'Elektronika xidməti sənaye cihazlarının və elektron modulların müasir ölçü və test avadanlıqları ilə analizini, nasazlığın aşkarlanmasını və peşəkar təmirini əhatə edir. Məqsəd avadanlığın etibarlı işləməsini bərpa etmək və dayanma müddətini azaltmaqdır.\n\nKomanda elektron dövrələrin və PCB-lərin yoxlanması, komponent səviyyəsində təmir, mikrokontroller və sensor həlləri, dövrə dizaynı, prototipləşdirmə və sistem inteqrasiyası üzrə xidmət göstərir.',
-      imageUrl: 'https://technocare.az/wp-content/uploads/2025/06/x-ray.webp',
+      imageUrl: 'assets/images/content/electronics.webp',
       images: <String>[],
       url: 'https://technocare.az/xidmetler',
     ),
@@ -169,8 +171,7 @@ class RequiredContentCatalog {
           'Elektrik sistemlərinin layihələndirilməsi, enerji paylanması, səmərəlilik, kompensasiya və bərpa olunan enerji həlləri.',
       body:
           'Energetika xidməti sənaye və kommersiya obyektlərinin elektrik sistemlərinin təhlükəsiz, dayanıqlı və səmərəli işləməsi üçün mühəndislik həlləri təqdim edir. Yüklər və istehlak göstəriciləri analiz olunur, uyğun paylama və mühafizə arxitekturası hazırlanır.\n\nXidmətlərə elektrik paylama şəbəkələrinin layihələndirilməsi və optimallaşdırılması, enerji səmərəliliyi analizi, reaktiv gücün kompensasiyası, elektrik panelləri, alternativ və bərpa olunan enerji sistemləri, test və texniki dəstək daxildir.',
-      imageUrl:
-          'https://technocare.az/wp-content/uploads/2024/03/Energetika-technocare.webp',
+      imageUrl: 'assets/images/content/service-energy.webp',
       images: <String>[],
       url: 'https://technocare.az/xidmetler',
     ),
@@ -184,8 +185,7 @@ class RequiredContentCatalog {
           'PLC və SCADA proqramlaşdırması, idarəetmə dövrələri, sensorlar və real sənaye avtomatlaşdırması layihələri.',
       body:
           'Avtomatika mühəndisliyi proqramı sənaye proseslərinin avtomatik idarə olunmasını nəzəri və praktiki şəkildə öyrədir. Tədris elektrik və elektronikanın əsaslarından başlayaraq idarəetmə dövrələri, ölçmə alətləri, sensorlar, aktuatorlar və sənaye təhlükəsizliyi mövzularını əhatə edir.\n\nİştirakçılar PLC proqramlaşdırması, PLC dövrə dizaynı, SCADA və HMI sistemləri, sistem inteqrasiyası və real avadanlıqlarla praktiki layihələr üzərində işləyirlər. Proqram yeni başlayanlar və sənayedə avtomatlaşdırma üzrə inkişaf etmək istəyən mütəxəssislər üçün uyğundur.',
-      imageUrl:
-          'https://technocare.az/wp-content/uploads/2025/01/plc-km-6-7.jpg',
+      imageUrl: 'assets/images/content/education-automation.webp',
       images: <String>[],
       url: 'https://technocare.az/avtomatika-muhendisliyi-kurslari',
     ),
@@ -196,7 +196,7 @@ class RequiredContentCatalog {
           'Elektron dövrələr, mikrokontrollerlər, sensorlar, PCB dizaynı, lehimləmə və real cihaz layihələri.',
       body:
           'Elektronika mühəndisliyi proqramı elektron siqnalların, dövrələrin və ağıllı cihazların iş prinsipini öyrədir. Kursda dövrə elementləri, ölçmə və analiz, analoq və rəqəmsal elektronika, mikrokontroller proqramlaşdırması və sensor texnologiyaları mərhələli şəkildə izah olunur.\n\nPraktiki məşğələlər zamanı iştirakçılar dövrə yığma, sensorlardan məlumat oxuma, PCB dizaynı, lehimləmə, nasazlıq axtarışı və real prototiplərin hazırlanması bacarıqları qazanırlar.',
-      imageUrl: 'https://technocare.az/wp-content/uploads/2025/06/x-ray.webp',
+      imageUrl: 'assets/images/content/electronics.webp',
       images: <String>[],
       url: 'https://technocare.az/elektronika-muhendisliyi-kursu',
     ),
@@ -207,8 +207,7 @@ class RequiredContentCatalog {
           'Elektrik dövrələri, transformator və generatorlar, paylama şəbəkələri, mühafizə və ağıllı enerji sistemləri.',
       body:
           'Elektrik mühəndisliyi proqramı elektrik enerjisinin istehsalı, ötürülməsi, paylanması və təhlükəsiz istifadəsi üzrə baza və tətbiqi biliklər verir. Tədris elektrik dövrələri, ölçmə, transformatorlar, generatorlar, elektrik maşınları və mühafizə sistemlərini əhatə edir.\n\nİştirakçılar paylayıcı sistemlərin quruluşunu, elektrik sxemlərinin oxunmasını, enerji hesablamalarını, ağıllı enerji həllərini və alternativ enerji mənbələrini real layihələr və laboratoriya məşğələləri vasitəsilə öyrənirlər.',
-      imageUrl:
-          'https://technocare.az/wp-content/uploads/2025/06/Untitled-design-16.webp',
+      imageUrl: 'assets/images/content/education-electrical.webp',
       images: <String>[],
       url: 'https://technocare.az/elektrik-muhendisliyi-kursu',
     ),
