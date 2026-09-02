@@ -41,20 +41,34 @@ coverage/
 
 # ASP.NET Core local configuration and secrets
 backendMAIN/appsettings.json
-backendMAIN/appsettings.Development.json
-backendMAIN/appsettings.Local.json
-backendMAIN/appsettings.*.local.json
+backendMAIN/appsettings.*.json
 !backendMAIN/appsettings.example.json
-secrets.json
+**/secrets.json
+**/.secrets/
 
 # Generic environment and credential files
 .env
 .env.*
 !.env.example
+!.env*.example
 *.pem
 *.key
 *.pfx
 *.p12
+*.p8
+*.cer
+*.der
+*.mobileprovision
+id_rsa
+id_ed25519
+
+# Firebase and cloud service-account credentials
+**/google-services.json
+**/GoogleService-Info.plist
+**/*firebase-adminsdk*.json
+**/*firebase-service-account*.json
+**/*service-account*.json
+**/*service_account*.json
 
 # Dart and Flutter tooling
 **/.dart_tool/
@@ -79,6 +93,9 @@ secrets.json
 **/android/app/release/
 app.*.symbols
 app.*.map.json
+*.aab
+*.apk
+*.ipa
 
 # Mobile signing credentials
 **/key.properties

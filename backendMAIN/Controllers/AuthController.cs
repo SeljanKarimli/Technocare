@@ -134,6 +134,10 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> ResendVerificationCode([FromBody] ForgotPasswordRequest request)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
             await _userService.ResendVerificationEmailAsync(request.Email);
             return Ok(new { message = "Hesab təsdiqlənməyibsə, yeni kod göndərildi." });
         }
@@ -200,15 +204,5 @@ namespace backend.Controllers
             return Ok(response);
         }
 
-
-
-        public class VerifyEmailRequest
-        {
-            [Required, EmailAddress, StringLength(254)]
-            public string Email { get; set; } = null!;
-
-            [Required, StringLength(12, MinimumLength = 6)]
-            public string Code { get; set; } = null!;
-        }
     }
 }

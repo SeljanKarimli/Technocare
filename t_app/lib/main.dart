@@ -1,44 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/api_client.dart';
 import 'core/secure_session.dart';
-import 'providers/auth_provider.dart';
 import 'providers/shop_cart_provider.dart';
-import 'repositories/auth_repository.dart';
 import 'repositories/content_repository.dart';
 import 'repositories/projects_repository.dart';
 import 'repositories/shop_repository.dart';
 import 'screens/home_page.dart';
 import 'services/whatsapp_order_service.dart';
+import 'services/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final secureSession = SecureSession();
   await secureSession.migrateLegacySession();
   final apiClient = ApiClient(session: secureSession);
-  final authRepository = AuthRepository(apiClient);
   final contentRepository = ContentRepository(apiClient);
   final shopRepository = ShopRepository(apiClient);
   final projectsRepository = ProjectsRepository(apiClient);
   final whatsAppOrderService = WhatsAppOrderService(shopRepository);
+  final pushNotificationService = PushNotificationService();
+  unawaited(pushNotificationService.initialize());
 
   runApp(
     MultiProvider(
       providers: [
         Provider<SecureSession>.value(value: secureSession),
         Provider<ApiClient>.value(value: apiClient),
-        Provider<AuthRepository>.value(value: authRepository),
         Provider<ContentRepository>.value(value: contentRepository),
         Provider<ShopRepository>.value(value: shopRepository),
         Provider<ProjectsRepository>.value(value: projectsRepository),
         Provider<WhatsAppOrderService>.value(value: whatsAppOrderService),
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider(
-            repository: authRepository,
-            secureSession: secureSession,
-          ),
-        ),
+        Provider<PushNotificationService>.value(value: pushNotificationService),
         ChangeNotifierProvider(
           create: (_) {
             final provider = ShopCartProvider(shopRepository);
@@ -113,10 +109,6 @@ class TechnocareApp extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
-    home: Consumer<AuthProvider>(
-      builder: (_, auth, __) => auth.isLoading
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : const HomePage(),
-    ),
+    home: const HomePage(),
   );
 }

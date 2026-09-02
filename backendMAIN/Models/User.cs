@@ -101,8 +101,8 @@ public class VerifyEmailRequest
     [Required, EmailAddress, StringLength(254)]
     public string Email { get; set; } = null!;
 
-    [Required, StringLength(128, MinimumLength = 6)]
-    public string Token { get; set; } = null!;
+    [Required, RegularExpression(@"^\d{6}$", ErrorMessage = "Təsdiq kodu 6 rəqəmdən ibarət olmalıdır.")]
+    public string Code { get; set; } = null!;
 }
 
 // DTO for

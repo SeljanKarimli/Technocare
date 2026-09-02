@@ -9,12 +9,22 @@ namespace backend.Services;
 public class ServiceApplicationService
 {
     private readonly IMongoCollection<ServiceApplication> _serviceApplicationsCollection;
+    private readonly EmailOutboxService _emailOutbox;
+    private readonly EmailSettings _emailSettings;
+    private readonly ILogger<ServiceApplicationService> _logger;
 
-    public ServiceApplicationService(IOptions<MongoDbSettings> mongoDbSettings)
+    public ServiceApplicationService(
+        IOptions<MongoDbSettings> mongoDbSettings,
+        IOptions<EmailSettings> emailSettings,
+        EmailOutboxService emailOutbox,
+        ILogger<ServiceApplicationService> logger)
     {
         var mongoClient = new MongoClient(mongoDbSettings.Value.ConnectionString);
         var mongoDatabase = mongoClient.GetDatabase(mongoDbSettings.Value.DatabaseName);
         _serviceApplicationsCollection = mongoDatabase.GetCollection<ServiceApplication>(mongoDbSettings.Value.ServiceApplicationsCollectionName);
+        _emailSettings = emailSettings.Value;
+        _emailOutbox = emailOutbox;
+        _logger = logger;
     }
 
     // Submit a new service application
@@ -32,8 +42,21 @@ public class ServiceApplicationService
             Status = "Pending" // Initial status
         };
         await _serviceApplicationsCollection.InsertOneAsync(serviceapplication);
+        try
+        {
+            var email = ApplicationEmailComposer.Service(serviceapplication);
+            await _emailOutbox.EnqueueAsync(ApplicationRecipient(), email.Subject, email.HtmlBody);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Service application {ApplicationId} was saved but its notification email could not be queued.", serviceapplication.Id);
+        }
         return serviceapplication;
     }
+
+    private string ApplicationRecipient() => string.IsNullOrWhiteSpace(_emailSettings.ApplicationRecipient)
+        ? "info@technocare.az"
+        : _emailSettings.ApplicationRecipient.Trim();
 
     // Get all service applications (for admin)
     public async Task<List<ServiceApplication>> GetAllServiceApplicationsAsync() =>

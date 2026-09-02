@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_client.dart';
 
@@ -9,6 +11,9 @@ class NotificationItem {
   final String message;
   final DateTime timestamp;
   final bool read;
+  final bool isBroadcast;
+  final String? url;
+  final String? category;
 
   const NotificationItem({
     required this.id,
@@ -16,6 +21,9 @@ class NotificationItem {
     required this.message,
     required this.timestamp,
     required this.read,
+    required this.isBroadcast,
+    this.url,
+    this.category,
   });
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) =>
@@ -29,6 +37,9 @@ class NotificationItem {
             ) ??
             DateTime.now(),
         read: json['read'] == true,
+        isBroadcast: json['isBroadcast'] == true || !json.containsKey('userId'),
+        url: json['url']?.toString(),
+        category: json['category']?.toString(),
       );
 
   NotificationItem copyWith({bool? read}) => NotificationItem(
@@ -37,6 +48,9 @@ class NotificationItem {
     message: message,
     timestamp: timestamp,
     read: read ?? this.read,
+    isBroadcast: isBroadcast,
+    url: url,
+    category: category,
   );
 }
 
@@ -59,11 +73,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    if (widget.guest) {
-      _loading = false;
-    } else {
-      _loadNotifications();
-    }
+    _loadNotifications();
   }
 
   Future<void> _loadNotifications() async {
@@ -74,21 +84,41 @@ class _NotificationsPageState extends State<NotificationsPage> {
       });
     }
     try {
-      final response = await context.read<ApiClient>().get(
-        'notifications/my-notifications',
-        authenticated: true,
-      );
-      final raw = response is List
-          ? response
-          : response is Map
-          ? (response['items'] ?? response['data'] ?? const [])
-          : const [];
+      final api = context.read<ApiClient>();
+      final responses = <dynamic>[
+        await api.get('notifications/public', query: {'limit': 50}),
+      ];
+      if (!widget.guest) {
+        responses.add(
+          await api.get('notifications/my-notifications', authenticated: true),
+        );
+      }
+      final raw = <dynamic>[];
+      for (final response in responses) {
+        final items = response is List
+            ? response
+            : response is Map
+            ? response['items'] ?? response['data']
+            : null;
+        if (items is List) raw.addAll(items);
+      }
+      final preferences = await SharedPreferences.getInstance();
+      final localRead =
+          preferences.getStringList('readBroadcastNotifications')?.toSet() ??
+          <String>{};
+      final seen = <String>{};
       final parsed =
-          (raw as List)
+          raw
               .whereType<Map>()
               .map(
                 (item) =>
                     NotificationItem.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .where((item) => item.id.isNotEmpty && seen.add(item.id))
+              .map(
+                (item) => item.isBroadcast && localRead.contains(item.id)
+                    ? item.copyWith(read: true)
+                    : item,
               )
               .toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -113,34 +143,56 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _markAsRead(NotificationItem notification) async {
-    if (notification.read) return;
-    setState(() {
-      _items = _items
-          .map(
-            (item) =>
-                item.id == notification.id ? item.copyWith(read: true) : item,
-          )
-          .toList();
-    });
-    try {
-      await context.read<ApiClient>().put(
-        'notifications/${notification.id}/read',
-        authenticated: true,
-      );
-    } catch (_) {
-      if (!mounted) return;
+    if (!notification.read) {
       setState(() {
         _items = _items
             .map(
-              (item) => item.id == notification.id
-                  ? item.copyWith(read: false)
-                  : item,
+              (item) =>
+                  item.id == notification.id ? item.copyWith(read: true) : item,
             )
             .toList();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bildirişi yeniləmək mümkün olmadı.')),
-      );
+      try {
+        if (notification.isBroadcast) {
+          final preferences = await SharedPreferences.getInstance();
+          final read =
+              preferences
+                  .getStringList('readBroadcastNotifications')
+                  ?.toSet() ??
+              <String>{};
+          read.add(notification.id);
+          await preferences.setStringList(
+            'readBroadcastNotifications',
+            [
+              notification.id,
+              ...read.where((id) => id != notification.id),
+            ].take(500).toList(),
+          );
+        } else {
+          await context.read<ApiClient>().put(
+            'notifications/${notification.id}/read',
+            authenticated: true,
+          );
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _items = _items
+              .map(
+                (item) => item.id == notification.id
+                    ? item.copyWith(read: false)
+                    : item,
+              )
+              .toList();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bildirişi yeniləmək mümkün olmadı.')),
+        );
+      }
+    }
+    final uri = Uri.tryParse(notification.url ?? '');
+    if (uri != null && uri.hasScheme) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -161,16 +213,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
         title: Text(unread == 0 ? 'Bildirişlər' : 'Bildirişlər ($unread)'),
         actions: [
           IconButton(
-            onPressed: widget.guest ? null : _loadNotifications,
+            onPressed: _loadNotifications,
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Yenilə',
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: widget.guest ? () async {} : _loadNotifications,
-        child: _body(),
-      ),
+      body: RefreshIndicator(onRefresh: _loadNotifications, child: _body()),
     );
   }
 
@@ -207,7 +256,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
             if (widget.guest) ...[
               const SizedBox(height: 8),
               const Text(
-                'Alış-veriş və WhatsApp sifarişi üçün giriş tələb olunmur.',
+                'Saytda yenilik olduqda bildirişlər burada görünəcək. Sistem bildirişlərinə cihaz icazəsi verin.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.black54),
               ),

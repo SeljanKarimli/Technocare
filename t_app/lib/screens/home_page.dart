@@ -4,17 +4,13 @@ import 'package:google_nav_bar/google_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../providers/auth_provider.dart';
 import '../providers/shop_cart_provider.dart';
 import '../services/whatsapp_order_service.dart';
 import 'categories_page.dart';
 import 'education_page.dart';
 import 'live_home_screen.dart';
-import 'login_screen.dart';
 import 'notifications_page.dart';
-import 'profile_page.dart';
 import 'projects_page.dart';
-import 'register_screen.dart';
 import 'shop_cart_page.dart';
 import 'shop_page.dart';
 
@@ -41,7 +37,6 @@ class _HomePageState extends State<HomePage> {
     const CategoriesPage(),
     const EducationPage(),
     const ProjectsPage(),
-    const _ProfileGate(),
   ];
 
   Future<void> _openCart() async {
@@ -52,10 +47,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openNotifications() async {
-    final isGuest = !context.read<AuthProvider>().isAuthenticated;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => NotificationsPage(guest: isGuest)),
+      MaterialPageRoute(builder: (_) => const NotificationsPage(guest: true)),
     );
   }
 
@@ -159,84 +153,11 @@ class _HomePageState extends State<HomePage> {
                 GButton(icon: Icons.engineering_outlined, text: 'Xidmətlər'),
                 GButton(icon: Icons.school_outlined, text: 'Təhsil'),
                 GButton(icon: Icons.factory_outlined, text: 'Layihələr'),
-                GButton(icon: Icons.person_outline_rounded, text: 'Profil'),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ProfileGate extends StatelessWidget {
-  const _ProfileGate();
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (_, auth, __) {
-        if (auth.isAuthenticated) return const ProfilePage();
-        return Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(30),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 92,
-                  height: 92,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEAF7E5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.person_outline_rounded,
-                    size: 48,
-                    color: Color(0xFF2F7623),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                const Text(
-                  'Hesabınıza daxil olun',
-                  style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 9),
-                const Text(
-                  'Mağaza və WhatsApp sifarişi hesab olmadan işləyir. Profil və şəxsi bildirişlər üçün giriş könüllüdür.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54, height: 1.45),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const LoginScreen(returnToPrevious: true),
-                      ),
-                    ),
-                    child: const Text('Daxil ol'),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                    ),
-                    child: const Text('Qeydiyyatdan keç'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

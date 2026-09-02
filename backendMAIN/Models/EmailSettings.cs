@@ -7,4 +7,5 @@ public class EmailSettings
     public string SmtpPass { get; set; } = null!;
     public string SenderEmail { get; set; } = null!;
     public string SenderName { get; set; } = null!;
+    public string ApplicationRecipient { get; set; } = "info@technocare.az";
 }

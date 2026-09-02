@@ -1,9 +1,8 @@
-﻿import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // For state management
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/form_validators.dart';
-import '../providers/auth_provider.dart';
 
 // New Application Form Page
 class ApplicationFormEPage extends StatefulWidget {
@@ -30,18 +29,14 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
     'Elektronika Mühəndisliyi',
     'Elektrik Mühəndisliyi',
   ];
-  
+
   @override
   void initState() {
     super.initState();
     // Initialize selected field from widget property
-    _selectedField = widget.initialSelectedField.isNotEmpty ? widget.initialSelectedField : null;
-
-    // Get authProvider to pre-fill user info
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    _nameController.text = authProvider.userName ?? '';
-    _mobileController.text = authProvider.userPhone ?? '';
-    _emailController.text = authProvider.userEmail ?? '';
+    _selectedField = widget.initialSelectedField.isNotEmpty
+        ? widget.initialSelectedField
+        : null;
   }
 
   @override
@@ -70,19 +65,23 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
 
       try {
         await context.read<ApiClient>().post(
-              'EducationApplications',
-              body: applicationData,
-            );
+          'EducationApplications',
+          body: applicationData,
+        );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Müraciətiniz uğurla göndərildi!')),
+          const SnackBar(
+            content: Text(
+              'Müraciət qəbul edildi və info@technocare.az ünvanına yönləndirildi.',
+            ),
+          ),
         );
         Navigator.pop(context);
       } on ApiException catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       } catch (_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -102,7 +101,10 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Müraciət Forması', style: TextStyle(color: Colors.black)),
+        title: const Text(
+          'Müraciət Forması',
+          style: TextStyle(color: Colors.black),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -194,7 +196,9 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _isLoading ? null : _submitForm,
-                  child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Müraciəti göndər'),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Müraciəti göndər'),
                 ),
               ),
             ],

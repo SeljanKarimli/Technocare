@@ -1,9 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/form_validators.dart';
-import '../providers/auth_provider.dart';
 
 class ApplicationFormSPage extends StatefulWidget {
   final String initialSelectedField;
@@ -51,22 +50,10 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
     super.initState();
 
     // 1. Validate the initial field exists in our keys
-    if (widget.initialSelectedField.isNotEmpty && 
+    if (widget.initialSelectedField.isNotEmpty &&
         _applicationFields.containsKey(widget.initialSelectedField)) {
       _selectedField = widget.initialSelectedField;
     }
-
-    // 2. Use addPostFrameCallback to safely access Provider in initState
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        setState(() {
-          _nameController.text = authProvider.userName ?? '';
-          _mobileController.text = authProvider.userPhone ?? '';
-          _emailController.text = authProvider.userEmail ?? '';
-        });
-      }
-    });
   }
 
   @override
@@ -94,10 +81,12 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
       };
 
       await context.read<ApiClient>().post(
-            'ServiceApplications',
-            body: applicationData,
-          );
-      _showSnack('Müraciət göndərildi');
+        'ServiceApplications',
+        body: applicationData,
+      );
+      _showSnack(
+        'Müraciət qəbul edildi və info@technocare.az ünvanına yönləndirildi.',
+      );
       return true;
     } on ApiException catch (error) {
       _showSnack(error.message);
@@ -133,7 +122,10 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
               TextFormField(
                 controller: _nameController,
                 maxLength: 100,
-                decoration: const InputDecoration(labelText: 'Adınız Soyadınız', prefixIcon: Icon(Icons.person)),
+                decoration: const InputDecoration(
+                  labelText: 'Adınız Soyadınız',
+                  prefixIcon: Icon(Icons.person),
+                ),
                 validator: FormValidators.name,
               ),
               const SizedBox(height: 12),
@@ -141,23 +133,37 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
                 controller: _mobileController,
                 maxLength: 24,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Mobil nömrə', prefixIcon: Icon(Icons.phone)),
+                decoration: const InputDecoration(
+                  labelText: 'Mobil nömrə',
+                  prefixIcon: Icon(Icons.phone),
+                ),
                 validator: FormValidators.phone,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
                 maxLength: 254,
                 validator: FormValidators.email,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _selectedField,
-                decoration: const InputDecoration(labelText: 'Sahə', prefixIcon: Icon(Icons.category)),
-                items: _applicationFields.keys.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                onChanged: (val) => setState(() { _selectedField = val; _selectedSubService = null; }),
+                decoration: const InputDecoration(
+                  labelText: 'Sahə',
+                  prefixIcon: Icon(Icons.category),
+                ),
+                items: _applicationFields.keys
+                    .map((f) => DropdownMenuItem(value: f, child: Text(f)))
+                    .toList(),
+                onChanged: (val) => setState(() {
+                  _selectedField = val;
+                  _selectedSubService = null;
+                }),
                 validator: (v) => v == null ? 'Seçim edin' : null,
               ),
               const SizedBox(height: 12),
@@ -166,11 +172,18 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
                   key: ValueKey(_selectedField),
                   isExpanded: true, // Prevents overflow
                   initialValue: _selectedSubService,
-                  decoration: const InputDecoration(labelText: 'Alt xidmət', prefixIcon: Icon(Icons.list)),
-                  items: _applicationFields[_selectedField]!.map((s) => DropdownMenuItem(
-                    value: s, 
-                    child: Text(s, overflow: TextOverflow.ellipsis)
-                  )).toList(),
+                  decoration: const InputDecoration(
+                    labelText: 'Alt xidmət',
+                    prefixIcon: Icon(Icons.list),
+                  ),
+                  items: _applicationFields[_selectedField]!
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(),
                   onChanged: (val) => setState(() => _selectedSubService = val),
                   validator: (v) => v == null ? 'Seçim edin' : null,
                 ),
@@ -179,19 +192,26 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
                 controller: _messageController,
                 maxLength: 2000,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Məlumat', prefixIcon: Icon(Icons.edit)),
+                decoration: const InputDecoration(
+                  labelText: 'Məlumat',
+                  prefixIcon: Icon(Icons.edit),
+                ),
               ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: FilledButton(
-                  onPressed: _isLoading ? null : () async {
-                    if (await _submitForm()) {
-                      if (context.mounted) Navigator.pop(context);
-                    }
-                  },
-                  child: _isLoading ? const CircularProgressIndicator() : const Text('Göndər'),
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          if (await _submitForm()) {
+                            if (context.mounted) Navigator.pop(context);
+                          }
+                        },
+                  child: _isLoading
+                      ? const CircularProgressIndicator()
+                      : const Text('Göndər'),
                 ),
               ),
             ],

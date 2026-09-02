@@ -34,6 +34,14 @@ namespace backend.Controllers
             return Ok(notifications);
         }
 
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<ActionResult<List<Notification>>> GetPublicNotifications([FromQuery] int limit = 50)
+        {
+            var notifications = await _notificationService.GetPublicNotificationsAsync(limit, HttpContext.RequestAborted);
+            return Ok(notifications);
+        }
+
         [HttpPut("{id:length(24)}/read")] // PUT /api/notifications/{id}/read
         public async Task<IActionResult> MarkAsRead(string id)
         {
@@ -41,7 +49,7 @@ namespace backend.Controllers
             var success = await _notificationService.MarkNotificationAsReadAsync(id, userId);
             if (!success)
             {
-                return NotFound(new { message = "Notification not found or not authorized to mark as read." });
+                return NotFound(new { message = "Bildiriş tapılmadı və ya bu əməliyyata icazəniz yoxdur." });
             }
             return NoContent();
         }
@@ -55,15 +63,14 @@ namespace backend.Controllers
                 return BadRequest(ModelState);
             }
             await _notificationService.CreateNotificationAsync(request);
-            return CreatedAtAction(nameof(SendNotification), new { message = "Notification sent successfully." });
+            return CreatedAtAction(nameof(SendNotification), new { message = "Bildiriş uğurla göndərildi." });
         }
 
         [HttpGet("all")] // GET /api/notifications/all
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<List<Notification>>> GetAllNotifications()
         {
-            // Admin can view all notifications, regardless of userId
-            var notifications = await _notificationService.GetUserNotificationsAsync(""); // Pass empty string to get all (including null userId)
+            var notifications = await _notificationService.GetAllNotificationsAsync(HttpContext.RequestAborted);
             return Ok(notifications);
         }
 
@@ -74,7 +81,7 @@ namespace backend.Controllers
             var success = await _notificationService.DeleteNotificationAsync(id);
             if (!success)
             {
-                return NotFound(new { message = "Notification not found." });
+                return NotFound(new { message = "Bildiriş tapılmadı." });
             }
             return NoContent();
         }

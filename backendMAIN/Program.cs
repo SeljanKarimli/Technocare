@@ -25,6 +25,7 @@ builder.Services.AddOptions<JwtSettings>()
     .Validate(settings => !string.IsNullOrWhiteSpace(settings.Secret) && settings.Secret.Length >= 32, "JWT secret must be at least 32 characters.")
     .ValidateOnStart();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<FirebaseSettings>(builder.Configuration.GetSection(FirebaseSettings.SectionName));
 builder.Services.Configure<AdminBootstrapOptions>(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName));
 builder.Services.AddOptions<TechnocareSiteOptions>()
     .Bind(builder.Configuration.GetSection(TechnocareSiteOptions.SectionName))
@@ -44,11 +45,14 @@ builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<CategoryService>();
 builder.Services.AddSingleton<NotificationService>();
+builder.Services.AddSingleton<SiteEventSignatureVerifier>();
+builder.Services.AddSingleton<FirebasePushService>();
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<ShopCartService>();
 builder.Services.AddHostedService<ShopCartIndexInitializer>();
 builder.Services.AddHostedService<UserIndexInitializer>();
 builder.Services.AddHostedService<AdminRoleBootstrapper>();
+builder.Services.AddHostedService<PushNotificationWorker>();
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("TechnocareMedia", client =>
@@ -145,6 +149,15 @@ builder.Services.AddRateLimiter(options =>
         _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("site-events", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        "site-events:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
             AutoReplenishment = true,

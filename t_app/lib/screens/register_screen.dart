@@ -6,6 +6,7 @@ import '../core/form_validators.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
 import 'verification_page.dart';
+import '../widgets/auth_flow_info_card.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -103,6 +104,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 24),
+              const AuthFlowInfoCard(),
+              const SizedBox(height: 20),
               TextFormField(
                 controller: _nameController,
                 maxLength: 100,

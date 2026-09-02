@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Technocare App API
  * Description: Versioned, mobile-friendly content, catalogue and checkout endpoints for the Technocare Flutter app.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Requires PHP: 8.0
  * Author: Technocare
  */
@@ -50,6 +50,127 @@ final class Technocare_App_API
         add_action('save_post_product', [self::class, 'index_saved_product'], 20, 3);
         add_action('woocommerce_product_set_stock', [self::class, 'index_stock_product'], 20, 1);
         add_action('set_object_terms', [self::class, 'index_product_terms'], 20, 6);
+        add_action('transition_post_status', [self::class, 'queue_published_update'], 30, 3);
+        add_action('post_updated', [self::class, 'queue_content_update'], 30, 3);
+        add_action('updated_post_meta', [self::class, 'queue_visible_meta_update'], 30, 4);
+        add_action('added_post_meta', [self::class, 'queue_visible_meta_update'], 30, 4);
+        add_action('woocommerce_update_product', [self::class, 'queue_product_update'], 30, 1);
+        add_action('technocare_app_send_site_update', [self::class, 'send_site_update'], 10, 2);
+    }
+
+    public static function queue_published_update(string $new_status, string $old_status, WP_Post $post): void
+    {
+        if ($new_status === 'publish' && $old_status !== 'publish') {
+            self::queue_site_update($post, true);
+        }
+    }
+
+    public static function queue_content_update(int $post_id, WP_Post $after, WP_Post $before): void
+    {
+        if ($after->post_status !== 'publish' || $before->post_status !== 'publish') {
+            return;
+        }
+        if ($after->post_title === $before->post_title &&
+            $after->post_content === $before->post_content &&
+            $after->post_excerpt === $before->post_excerpt) {
+            return;
+        }
+        self::queue_site_update($after, false);
+    }
+
+    public static function queue_product_update(int $product_id): void
+    {
+        $post = get_post($product_id);
+        if ($post instanceof WP_Post && $post->post_status === 'publish') {
+            self::queue_site_update($post, false);
+        }
+    }
+
+    public static function queue_visible_meta_update(int $meta_id, int $post_id, string $meta_key, $meta_value): void
+    {
+        unset($meta_id, $meta_value);
+        if (!in_array($meta_key, ['_elementor_data', '_elementor_page_settings'], true)) {
+            return;
+        }
+        $post = get_post($post_id);
+        if ($post instanceof WP_Post && $post->post_status === 'publish') {
+            self::queue_site_update($post, false);
+        }
+    }
+
+    private static function queue_site_update(WP_Post $post, bool $is_new): void
+    {
+        if (wp_is_post_revision($post->ID) || wp_is_post_autosave($post->ID)) {
+            return;
+        }
+        $post_type = get_post_type_object($post->post_type);
+        if (!$post_type || !$post_type->public || in_array($post->post_type, ['attachment', 'product_variation', 'shop_order'], true)) {
+            return;
+        }
+        $debounce_key = 'technocare_app_update_' . $post->ID;
+        if (get_transient($debounce_key)) {
+            return;
+        }
+        set_transient($debounce_key, 1, 45);
+
+        $title = self::clean_text(get_the_title($post));
+        $category = $post->post_type === 'product' ? 'product' : ($post->post_type === 'post' ? 'news' : 'website');
+        if ($post->post_type === 'product') {
+            $message = $is_new
+                ? sprintf('%s məhsulu mağazaya əlavə edildi.', $title)
+                : sprintf('%s məhsulunun məlumatları yeniləndi.', $title);
+        } else {
+            $message = $is_new
+                ? sprintf('Saytda yeni məlumat yayımlandı: %s', $title)
+                : sprintf('Saytdakı %s bölməsi yeniləndi.', $title);
+        }
+        $payload = [
+            'eventId' => wp_generate_uuid4() . '-' . $post->ID,
+            'category' => $category,
+            'title' => $is_new ? 'Technocare-da yenilik' : 'Technocare yeniləndi',
+            'message' => mb_substr($message, 0, 600),
+            'url' => get_permalink($post),
+            'occurredAt' => gmdate(DATE_ATOM),
+        ];
+        wp_schedule_single_event(time() + 10, 'technocare_app_send_site_update', [$payload, 0]);
+    }
+
+    /** @param array<string, mixed> $payload */
+    public static function send_site_update(array $payload, int $attempt = 0): void
+    {
+        $secret = defined('TECHNOCARE_APP_SHARED_SECRET') ? (string) TECHNOCARE_APP_SHARED_SECRET : '';
+        $backend = defined('TECHNOCARE_APP_BACKEND_URL')
+            ? rtrim((string) TECHNOCARE_APP_BACKEND_URL, '/')
+            : 'https://api.technocare.az';
+        if ($secret === '' || !wp_http_validate_url($backend)) {
+            return;
+        }
+        $body = wp_json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($body)) {
+            return;
+        }
+        $timestamp = (string) time();
+        $nonce = wp_generate_password(32, false, false);
+        $signature = hash_hmac('sha256', $timestamp . '.' . $nonce . '.' . $body, $secret);
+        $response = wp_remote_post($backend . '/api/v1/site-events', [
+            'timeout' => 12,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-Technocare-Timestamp' => $timestamp,
+                'X-Technocare-Nonce' => $nonce,
+                'X-Technocare-Signature' => $signature,
+            ],
+            'body' => $body,
+            'data_format' => 'body',
+        ]);
+        $status = is_wp_error($response) ? 0 : (int) wp_remote_retrieve_response_code($response);
+        if ($status >= 200 && $status < 300) {
+            return;
+        }
+        $delays = [60, 300, 900, 3600, 10800];
+        if (isset($delays[$attempt])) {
+            wp_schedule_single_event(time() + $delays[$attempt], 'technocare_app_send_site_update', [$payload, $attempt + 1]);
+        }
     }
 
     public static function register_routes(): void

@@ -6,7 +6,6 @@ export 'screens/reset_password_screen.dart';
 export 'screens/location_selection_screen.dart';
 export 'screens/home_page.dart';
 export 'screens/notifications_page.dart';
-export 'screens/profile_page.dart';
 export 'screens/help_support_screen.dart';
 export 'screens/about_us_screen.dart';
 export 'screens/education_page.dart';

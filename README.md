@@ -6,11 +6,14 @@ Technocare is a Flutter Android/iOS application backed by ASP.NET Core 8 and the
 
 ```mermaid
 flowchart LR
-    App[Flutter app] -->|HTTPS; JWT only for account features| API[ASP.NET Core gateway]
+    App[Flutter guest app] -->|HTTPS| API[ASP.NET Core gateway]
     API -->|Conditional JSON requests| WP[WordPress app API plugin]
     WP --> Woo[WooCommerce catalogue]
     API --> Mongo[(MongoDB users, applications, notifications)]
-    API --> SMTP[SMTP verification and recovery]
+    API --> SMTP[SMTP verification, recovery, applications]
+    WP -->|Signed update webhook| API
+    API --> FCM[Firebase Cloud Messaging topic]
+    FCM -->|Android/iOS system notification| App
     App -->|Prefilled guest order| WhatsApp[Technocare WhatsApp]
 ```
 
@@ -19,7 +22,9 @@ flowchart LR
 - The backend isolates the app from WordPress response details, retries safe reads, caches for five minutes, and returns stale content during temporary website failures.
 - The active cart is stored on the device and works without registration or login. It refreshes product snapshots from WooCommerce before preparing an order.
 - The app resolves Technocare's WhatsApp contact from live homepage links, with a build-time fallback, and opens a complete prefilled order message. WhatsApp requires the customer to tap **Send**.
-- Existing signed WooCommerce checkout/session code is retained for a future payment flow, but is not used by the active guest purchase journey.
+- Existing authentication and signed WooCommerce checkout/session code is retained for a possible future account/payment flow, but login, registration, profile, and server-side orders are not exposed by the active mobile UI.
+- Published website/page/product changes create a broadcast notification through a signed WordPress webhook. Every app install subscribes to the `technocare-site-updates` Firebase topic; login is not required.
+- Service and education applications are saved first, then queued for reliable SMTP delivery to `info@technocare.az`.
 - Legacy MongoDB products, carts, orders, categories, and projects are retained behind admin-only `/api/internal/legacy/*` routes; the mobile app does not use them.
 
 ## Repository layout
@@ -60,8 +65,9 @@ Backend gateway:
 | Public | `GET /api/v1/shop/products`, `/products/{id}`, `/categories`, `/brands` |
 | Public | `GET /api/v1/shop/suggestions?q=&limit=5` |
 | Public media | `GET /api/v1/media?url=` (only Technocare upload images) |
-| JWT, retained/inactive in the guest flow | `/api/v1/shop/cart`, `/checkout-session`, `/orders` |
-| JWT | `/api/notifications/my-notifications` |
+| JWT, retained/inactive in the guest flow | `/api/v1/shop/cart`, `/checkout-session`, `/orders`, `/api/notifications/my-notifications` |
+| Public | `GET /api/notifications/public` |
+| Signed WordPress webhook | `POST /api/v1/site-events` |
 | Public submission | `/api/serviceapplications`, `/api/educationapplications` |
 
 Product search supports Azerbaijani text, exact/prefix SKU ranking, product name, brand/category, and description matching; category, brand, stock, and price filters; pagination; and relevance, popularity, latest, name, and price sorting.
@@ -73,6 +79,7 @@ Product search supports Azerbaijani text, exact/prefix SKU ranking, product name
 
    ```php
    define('TECHNOCARE_APP_SHARED_SECRET', 'replace-with-at-least-32-random-characters');
+   define('TECHNOCARE_APP_BACKEND_URL', 'https://api.technocare.az');
    ```
 
 3. Activate **Technocare App API** in WordPress.
@@ -99,10 +106,14 @@ MongoDbSettings__ConnectionString
 JwtSettings__Secret
 TechnocareSite__SharedSecret
 EmailSettings__SmtpPass
+EmailSettings__ApplicationRecipient=info@technocare.az
+Firebase__Enabled=true
+Firebase__ProjectId
+Firebase__ServiceAccountJson
 AdminBootstrap__Email
 ```
 
-`TechnocareSite__SharedSecret` must exactly match `TECHNOCARE_APP_SHARED_SECRET`. Configure `Cors__AllowedOrigins__0` only for trusted browser origins. Native mobile requests do not require permissive CORS.
+`TechnocareSite__SharedSecret` must exactly match `TECHNOCARE_APP_SHARED_SECRET`. `Firebase__ServiceAccountJson` must be stored as a secret, never committed. Configure `Cors__AllowedOrigins__0` only for trusted browser origins. Native mobile requests do not require permissive CORS.
 
 Deploy behind a reverse proxy that forwards `X-Forwarded-For` and `X-Forwarded-Proto`, binds a valid TLS certificate, and redirects HTTP to HTTPS. `/health/live` checks only the process; `/health/ready` checks WordPress and MongoDB dependencies. Verification and password-reset mail is delivered by a durable MongoDB outbox, so a temporary SMTP outage does not roll back registration.
 
@@ -112,11 +123,36 @@ There is no configuration-based admin password. To bootstrap the first administr
 
 Prerequisites: Flutter stable with Dart 3.8 or later and Android Studio or Xcode.
 
+Before the production API is deployed, the Web preview can use the local-only development API. It proxies catalogue reads to the live WooCommerce Store API and keeps demo account/application data only in memory; it never sends real email or push notifications:
+
+```powershell
+python scripts/dev-preview-api.py
+
+Set-Location t_app
+flutter run -d web-server `
+  --web-port=8765 `
+  --dart-define=API_BASE_URL=http://127.0.0.1:8787/api
+```
+
 ```powershell
 Set-Location t_app
 flutter pub get
 flutter run --dart-define=API_BASE_URL=https://api.technocare.az/api
 ```
+
+System push notifications need the non-secret Firebase client identifiers at build time:
+
+```powershell
+flutter run `
+  --dart-define=API_BASE_URL=https://api.technocare.az/api `
+  --dart-define=FIREBASE_API_KEY=... `
+  --dart-define=FIREBASE_PROJECT_ID=... `
+  --dart-define=FIREBASE_MESSAGING_SENDER_ID=... `
+  --dart-define=FIREBASE_ANDROID_APP_ID=... `
+  --dart-define=FIREBASE_IOS_APP_ID=...
+```
+
+Enable the **Push Notifications** and **Background Modes → Remote notifications** capabilities for the iOS App ID/profile, and upload the APNs authentication key in Firebase. Android 13+ and iOS ask the user for notification permission on first configured launch. If Firebase variables are absent, the app continues normally and the public in-app notification feed still works.
 
 Use the same define for release builds:
 
@@ -125,7 +161,13 @@ flutter build appbundle --release --dart-define=API_BASE_URL=https://api.technoc
 flutter build ipa --release --dart-define=API_BASE_URL=https://api.technocare.az/api
 ```
 
-`WHATSAPP_PHONE=994102307097` can be supplied as an additional `--dart-define` fallback. Normally the app discovers the current WhatsApp link from the website homepage response within the same five-minute cache window. JWTs are stored with platform secure storage for optional account/profile features. Android cleartext traffic and invalid-certificate overrides are disabled.
+`WHATSAPP_PHONE=994102307097` can be supplied as an additional `--dart-define` fallback. Normally the app discovers the current WhatsApp link from the website homepage response within the same five-minute cache window. Android cleartext traffic and invalid-certificate overrides are disabled.
+
+### Guest-only mobile flow
+
+1. The mobile UI has no login, registration, profile, or account gate.
+2. Browsing, search, cart, WhatsApp ordering, education/service applications, projects, and website-update notifications work as a guest.
+3. The backend authentication implementation is retained but dormant so it can be reintroduced in a later release without affecting the guest journey.
 
 ## Validation
 
@@ -158,4 +200,4 @@ After deployment, verify that editing homepage text, changing product price/stoc
 - Do not commit `appsettings.*.json`, `.env` files, signing keys, certificates, SMTP passwords, JWT secrets, or the WordPress shared secret.
 - Signed WordPress writes include a timestamp, single-use nonce, and HMAC signature.
 - Swagger is development-only, errors are returned as sanitized Problem Details, and privileged routes require the Admin role.
-- A successful account deletion removes the Technocare user and server-side account data. The guest cart stays only on the device and can be cleared from the cart screen.
+- The guest cart stays only on the device and can be cleared from the cart screen.

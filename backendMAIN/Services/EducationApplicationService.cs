@@ -9,12 +9,22 @@ namespace backend.Services;
 public class EducationApplicationService
 {
     private readonly IMongoCollection<EducationApplication> _educationApplicationsCollection;
+    private readonly EmailOutboxService _emailOutbox;
+    private readonly EmailSettings _emailSettings;
+    private readonly ILogger<EducationApplicationService> _logger;
 
-    public EducationApplicationService(IOptions<MongoDbSettings> mongoDbSettings)
+    public EducationApplicationService(
+        IOptions<MongoDbSettings> mongoDbSettings,
+        IOptions<EmailSettings> emailSettings,
+        EmailOutboxService emailOutbox,
+        ILogger<EducationApplicationService> logger)
     {
         var mongoClient = new MongoClient(mongoDbSettings.Value.ConnectionString);
         var mongoDatabase = mongoClient.GetDatabase(mongoDbSettings.Value.DatabaseName);
         _educationApplicationsCollection = mongoDatabase.GetCollection<EducationApplication>(mongoDbSettings.Value.EducationApplicationsCollectionName);
+        _emailSettings = emailSettings.Value;
+        _emailOutbox = emailOutbox;
+        _logger = logger;
     }
 
     // Submit a new application
@@ -31,8 +41,21 @@ public class EducationApplicationService
             Status = "Pending" // Initial status
         };
         await _educationApplicationsCollection.InsertOneAsync(educationapplication);
+        try
+        {
+            var email = ApplicationEmailComposer.Education(educationapplication);
+            await _emailOutbox.EnqueueAsync(ApplicationRecipient(), email.Subject, email.HtmlBody);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Education application {ApplicationId} was saved but its notification email could not be queued.", educationapplication.Id);
+        }
         return educationapplication;
     }
+
+    private string ApplicationRecipient() => string.IsNullOrWhiteSpace(_emailSettings.ApplicationRecipient)
+        ? "info@technocare.az"
+        : _emailSettings.ApplicationRecipient.Trim();
 
     // Get all applications (for admin)
     public async Task<List<EducationApplication>> GetAllEducationApplicationsAsync() =>

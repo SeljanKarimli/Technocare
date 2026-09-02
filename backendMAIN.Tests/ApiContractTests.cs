@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using backend.Controllers;
 using backend.Models;
 using backend.Services;
@@ -87,6 +88,65 @@ public sealed class ApiContractTests
         Assert.False(valid);
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(request.Phone)));
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(request.Message)));
+    }
+
+    [Theory]
+    [InlineData("123456", true)]
+    [InlineData("12345", false)]
+    [InlineData("ABC123", false)]
+    public void EmailVerification_RequiresSixDigits(string code, bool expected)
+    {
+        var request = new VerifyEmailRequest { Email = "user@example.com", Code = code };
+        var results = new List<ValidationResult>();
+
+        var valid = Validator.TryValidateObject(request, new ValidationContext(request), results, true);
+
+        Assert.Equal(expected, valid);
+    }
+
+    [Fact]
+    public void ApplicationEmail_IsAddressedByConfigAndEscapesSubmittedHtml()
+    {
+        var application = new ServiceApplication
+        {
+            ApplicantName = "<script>alert(1)</script>",
+            ApplicantEmail = "USER@EXAMPLE.COM",
+            ApplicantPhone = "+994 50 000 00 00",
+            AppliedFor = "Avtomatika",
+            AppliedSubService = "PLC <b>servis</b>",
+            Message = "Salam & təşəkkür",
+            ApplicationDate = new DateTime(2026, 9, 2, 10, 0, 0, DateTimeKind.Utc),
+        };
+
+        var email = ApplicationEmailComposer.Service(application);
+
+        Assert.Equal("Yeni xidmət müraciəti — Avtomatika", email.Subject);
+        Assert.DoesNotContain("<script>", email.HtmlBody);
+        Assert.Contains("&lt;script&gt;", email.HtmlBody);
+        Assert.Contains("Salam &amp;", email.HtmlBody);
+    }
+
+    [Fact]
+    public void WebsiteEventSignature_RejectsReplayAndTampering()
+    {
+        const string secret = "test-shared-secret-at-least-32-chars";
+        const string body = "{\"eventId\":\"event-123456\"}";
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        const string nonce = "unique-nonce-123456789";
+        var payload = $"{timestamp}.{nonce}.{body}";
+        var signature = Convert.ToHexString(
+            HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(payload)))
+            .ToLowerInvariant();
+        var verifier = new SiteEventSignatureVerifier(
+            Options.Create(new TechnocareSiteOptions { SharedSecret = secret }),
+            new MemoryCache(new MemoryCacheOptions()));
+
+        Assert.True(verifier.Verify(body, timestamp, nonce, signature));
+        Assert.False(verifier.Verify(body, timestamp, nonce, signature));
+        Assert.False(new SiteEventSignatureVerifier(
+            Options.Create(new TechnocareSiteOptions { SharedSecret = secret }),
+            new MemoryCache(new MemoryCacheOptions()))
+            .Verify(body + " ", timestamp, nonce, signature));
     }
 
     [Theory]

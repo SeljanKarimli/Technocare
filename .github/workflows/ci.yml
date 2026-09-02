@@ -46,7 +46,13 @@ jobs:
       - run: flutter test --coverage
       - run: flutter build web --release --dart-define=API_BASE_URL=https://api.technocare.az/api
       - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.technocare.az/api
-      - run: flutter build appbundle --release --dart-define=API_BASE_URL=https://api.technocare.az/api
+      - run: >-
+          flutter build appbundle --release
+          --dart-define=API_BASE_URL=https://api.technocare.az/api
+          --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          --dart-define=FIREBASE_ANDROID_APP_ID=${{ secrets.FIREBASE_ANDROID_APP_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: technocare-android-bundle
@@ -66,7 +72,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://api.technocare.az/api
+      - run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=API_BASE_URL=https://api.technocare.az/api
+          --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          --dart-define=FIREBASE_IOS_APP_ID=${{ secrets.FIREBASE_IOS_APP_ID }}
 
   wordpress-plugin:
     name: WordPress plugin
