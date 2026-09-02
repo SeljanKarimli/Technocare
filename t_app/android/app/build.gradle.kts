@@ -13,6 +13,11 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+val codemagicKeystorePath = System.getenv("CM_KEYSTORE_PATH")
+val hasCodemagicSigning = !codemagicKeystorePath.isNullOrBlank()
+val hasLocalSigning = keystorePropertiesFile.exists()
+val hasReleaseSigning = hasCodemagicSigning || hasLocalSigning
+
 android {
     namespace = "com.technocare.technocare"
     compileSdk = flutter.compileSdkVersion
@@ -28,12 +33,25 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
     signingConfigs {
-        if (keystorePropertiesFile.exists()) {
+        if (hasReleaseSigning) {
             create("release") {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+                if (hasCodemagicSigning) {
+                    storeFile = file(requireNotNull(codemagicKeystorePath))
+                    storePassword = requireNotNull(System.getenv("CM_KEYSTORE_PASSWORD")) {
+                        "CM_KEYSTORE_PASSWORD is required for Codemagic release signing."
+                    }
+                    keyAlias = requireNotNull(System.getenv("CM_KEY_ALIAS")) {
+                        "CM_KEY_ALIAS is required for Codemagic release signing."
+                    }
+                    keyPassword = requireNotNull(System.getenv("CM_KEY_PASSWORD")) {
+                        "CM_KEY_PASSWORD is required for Codemagic release signing."
+                    }
+                } else {
+                    keyAlias = keystoreProperties.getProperty("keyAlias")
+                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                    storeFile = file(keystoreProperties.getProperty("storeFile"))
+                    storePassword = keystoreProperties.getProperty("storePassword")
+                }
             }
         }
     }
@@ -50,7 +68,7 @@ android {
 
     buildTypes {
         release {
-            if (keystorePropertiesFile.exists()) {
+            if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }

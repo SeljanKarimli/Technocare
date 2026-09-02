@@ -9,6 +9,8 @@ workflows:
     environment:
       flutter: stable
       java: 17
+      android_signing:
+        - technocare_upload_key
       vars:
         API_BASE_URL: https://api.technocare.az/api
     cache:
@@ -38,6 +40,11 @@ workflows:
           --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
           --dart-define=FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID"
           --dart-define=FIREBASE_ANDROID_APP_ID="$FIREBASE_ANDROID_APP_ID"
+      - name: Verify Android App Bundle signature
+        script: |
+          BUNDLE_PATH="build/app/outputs/bundle/release/app-release.aab"
+          keytool -printcert -jarfile "$BUNDLE_PATH" >/dev/null
+          jarsigner -verify -verbose -certs "$BUNDLE_PATH"
     artifacts:
       - build/app/outputs/bundle/release/*.aab
       - build/app/outputs/mapping/release/mapping.txt

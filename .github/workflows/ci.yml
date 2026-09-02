@@ -53,11 +53,8 @@ jobs:
           --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
           --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
           --dart-define=FIREBASE_ANDROID_APP_ID=${{ secrets.FIREBASE_ANDROID_APP_ID }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: technocare-android-bundle
-          path: t_app/build/app/outputs/bundle/release/*.aab
-          if-no-files-found: error
+      - name: Prevent unsigned CI bundle from being published
+        run: echo "GitHub Actions validates the Android release build only. Download signed release bundles from Codemagic."
 
   flutter-ios:
     name: Flutter iOS build
