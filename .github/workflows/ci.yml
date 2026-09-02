@@ -46,6 +46,12 @@ jobs:
       - run: flutter test --coverage
       - run: flutter build web --release --dart-define=API_BASE_URL=https://api.technocare.az/api
       - run: flutter build apk --debug --dart-define=API_BASE_URL=https://api.technocare.az/api
+      - run: flutter build appbundle --release --dart-define=API_BASE_URL=https://api.technocare.az/api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: technocare-android-bundle
+          path: t_app/build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
 
   flutter-ios:
     name: Flutter iOS build
