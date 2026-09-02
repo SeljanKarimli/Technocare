@@ -1,4 +1,52 @@
 workflows:
+  technocare-ios-app-store:
+    name: Technocare iOS App Store
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: t_app
+    integrations:
+      app_store_connect: technocare_app_store
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.technocare.technocare
+      vars:
+        API_BASE_URL: https://api.technocare.az/api
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Analyze Flutter source
+        script: flutter analyze --fatal-warnings
+      - name: Run Flutter tests
+        script: flutter test
+      - name: Install CocoaPods dependencies
+        script: find ios -name "Podfile" -execdir pod install \;
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
+      - name: Build signed iOS IPA
+        script: >-
+          flutter build ipa --release
+          --export-options-plist="$HOME/export_options.plist"
+          --dart-define=API_BASE_URL="$API_BASE_URL"
+          --dart-define=FIREBASE_API_KEY="$FIREBASE_API_KEY"
+          --dart-define=FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID"
+          --dart-define=FIREBASE_MESSAGING_SENDER_ID="$FIREBASE_MESSAGING_SENDER_ID"
+          --dart-define=FIREBASE_IOS_APP_ID="$FIREBASE_IOS_APP_ID"
+          --dart-define=FIREBASE_STORAGE_BUCKET="$FIREBASE_STORAGE_BUCKET"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      app_store_connect:
+        auth: integration
+
   technocare-android-bundle:
     name: Technocare Android App Bundle
     # Personal accounts receive free build minutes on the macOS M2 runner.
