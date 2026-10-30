@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../core/api_client.dart';
 import '../core/form_validators.dart';
+import '../services/whatsapp_order_service.dart';
 
 // New Application Form Page
 class ApplicationFormEPage extends StatefulWidget {
@@ -55,37 +56,30 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
         _isLoading = true;
       });
 
-      final applicationData = {
-        'Name': _nameController.text,
-        'Email': _emailController.text,
-        'Phone': _mobileController.text,
-        'AppliedFor': _selectedField,
-        'Message': _messageController.text,
-      };
-
       try {
-        await context.read<ApiClient>().post(
-          'EducationApplications',
-          body: applicationData,
+        final uri = await context.read<WhatsAppOrderService>().createEnquiryUri(
+          type: 'təhsil',
+          name: _nameController.text,
+          phone: _mobileController.text,
+          email: _emailController.text,
+          subject: _selectedField ?? '',
+          message: _messageController.text,
         );
+        if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+          throw StateError('WhatsApp açıla bilmədi.');
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Müraciət qəbul edildi və info@technocare.az ünvanına yönləndirildi.',
+              'Müraciəti tamamlamaq üçün WhatsApp-da Göndər düyməsinə toxunun.',
             ),
           ),
         );
-        Navigator.pop(context);
-      } on ApiException catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
       } catch (_) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Müraciəti göndərmək mümkün olmadı.')),
+          const SnackBar(content: Text('WhatsApp-ı açmaq mümkün olmadı. Yenidən cəhd edin.')),
         );
       } finally {
         if (mounted) {
@@ -192,13 +186,15 @@ class _ApplicationFormEPageState extends State<ApplicationFormEPage> {
                 ),
               ),
               const SizedBox(height: 32),
+              const Text('Müraciət WhatsApp-da açılacaq. Göndər düyməsinə özünüz toxunun.'),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _isLoading ? null : _submitForm,
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Müraciəti göndər'),
+                      : const Text('WhatsApp-da aç'),
                 ),
               ),
             ],

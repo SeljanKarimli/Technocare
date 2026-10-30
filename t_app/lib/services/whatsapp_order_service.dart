@@ -25,6 +25,30 @@ class WhatsAppOrderService {
     return Uri.https('wa.me', '/$phone');
   }
 
+  Future<Uri> createEnquiryUri({
+    required String type,
+    required String name,
+    required String phone,
+    required String email,
+    required String subject,
+    String? subService,
+    String message = '',
+  }) async {
+    final recipient = await resolveTechnocarePhone();
+    final lines = [
+      'Salam, Technocare!',
+      'Tətbiqdən $type üçün müraciət etmək istəyirəm.',
+      'Ad: ${name.trim()}',
+      'Telefon: ${phone.trim()}',
+      'Email: ${email.trim()}',
+      'Mövzu: ${subject.trim()}',
+      if (subService != null && subService.trim().isNotEmpty)
+        'Xidmət: ${subService.trim()}',
+      if (message.trim().isNotEmpty) 'Məlumat: ${message.trim()}',
+    ];
+    return Uri.https('wa.me', '/$recipient', {'text': lines.join('\n')});
+  }
+
   Future<String> resolveTechnocarePhone() async {
     try {
       final home = await _shopRepository.getHome();

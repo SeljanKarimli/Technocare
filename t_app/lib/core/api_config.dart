@@ -3,7 +3,7 @@ class ApiConfig {
 
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.technocare.az/api',
+    defaultValue: 'https://technocare-live-api.runasp.net/api',
   );
 
   static const String whatsAppPhone = String.fromEnvironment(

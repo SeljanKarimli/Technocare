@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../core/api_client.dart';
 import '../core/form_validators.dart';
+import '../services/whatsapp_order_service.dart';
 
 class ApplicationFormSPage extends StatefulWidget {
   final String initialSelectedField;
@@ -71,28 +72,25 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
     setState(() => _isLoading = true);
 
     try {
-      final applicationData = {
-        'Name': _nameController.text.trim(),
-        'Email': _emailController.text.trim(),
-        'Phone': _mobileController.text.trim(),
-        'AppliedFor': _selectedField,
-        'AppliedSubService': _selectedSubService,
-        'Message': _messageController.text.trim(),
-      };
-
-      await context.read<ApiClient>().post(
-        'ServiceApplications',
-        body: applicationData,
+      final uri = await context.read<WhatsAppOrderService>().createEnquiryUri(
+        type: 'xidmət',
+        name: _nameController.text,
+        email: _emailController.text,
+        phone: _mobileController.text,
+        subject: _selectedField ?? '',
+        subService: _selectedSubService,
+        message: _messageController.text,
       );
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw StateError('WhatsApp açıla bilmədi.');
+      }
+      if (!mounted) return false;
       _showSnack(
-        'Müraciət qəbul edildi və info@technocare.az ünvanına yönləndirildi.',
+        'Müraciəti tamamlamaq üçün WhatsApp-da Göndər düyməsinə toxunun.',
       );
       return true;
-    } on ApiException catch (error) {
-      _showSnack(error.message);
-      return false;
     } catch (_) {
-      _showSnack('Müraciəti göndərmək mümkün olmadı.');
+      if (mounted) _showSnack('WhatsApp-ı açmaq mümkün olmadı. Yenidən cəhd edin.');
       return false;
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -198,20 +196,18 @@ class _ApplicationFormSPageState extends State<ApplicationFormSPage> {
                 ),
               ),
               const SizedBox(height: 30),
+              const Text('Müraciət WhatsApp-da açılacaq. Göndər düyməsinə özünüz toxunun.'),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: FilledButton(
                   onPressed: _isLoading
                       ? null
-                      : () async {
-                          if (await _submitForm()) {
-                            if (context.mounted) Navigator.pop(context);
-                          }
-                        },
+                      : _submitForm,
                   child: _isLoading
                       ? const CircularProgressIndicator()
-                      : const Text('Göndər'),
+                      : const Text('WhatsApp-da aç'),
                 ),
               ),
             ],

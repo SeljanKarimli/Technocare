@@ -13,6 +13,31 @@ import 'package:technocare/services/whatsapp_order_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('application enquiry keeps all fields in a customer-confirmed WhatsApp draft', () async {
+    SharedPreferences.setMockInitialValues({});
+    final client = ApiClient(
+      session: SecureSession(),
+      baseUrl: 'https://example.test/api',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        return http.Response(jsonEncode({
+          'sections': [{'type': 'contact', 'links': [{'label': 'WhatsApp', 'url': 'https://wa.me/994501234567'}]}],
+        }), 200);
+      }),
+    );
+    final uri = await WhatsAppOrderService(ShopRepository(client)).createEnquiryUri(
+      type: 'təhsil', name: 'Əli Şükürov', phone: '+994 50 111 22 33',
+      email: 'ali@example.test', subject: 'Elektrik Mühəndisliyi',
+      message: 'Vaxt & qiymət?',
+    );
+    expect(uri.host, 'wa.me');
+    expect(uri.path, '/994501234567');
+    expect(uri.queryParameters['text'], contains('Əli Şükürov'));
+    expect(uri.queryParameters['text'], contains('Vaxt & qiymət?'));
+    expect(uri.queryParameters['text'], contains('ali@example.test'));
+    client.close();
+  });
+
   test(
     'guest cart persists locally and refreshes prices without a token',
     () async {

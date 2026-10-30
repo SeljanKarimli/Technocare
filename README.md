@@ -1,5 +1,33 @@
 # Technocare live mobile app
 
+## Current free hosting deployment
+
+The active mobile deployment uses `https://technocare-live-api.runasp.net/api`.
+Run the ASP.NET application with `PublicWebsite__Enabled=true` to serve the
+guest app without MongoDB, SMTP credentials, or a custom WordPress plugin.
+Products, prices and stock come from the site's public WooCommerce Store API;
+homepage, service, education and portfolio content are extracted from published
+website pages on the server. Flutter continues to consume typed JSON. Website
+template changes may require parser updates. Service/education enquiries and
+orders open a WhatsApp draft that the customer sends explicitly.
+
+Use `scripts/package-monsterasp.ps1` to build a secret-free deployment ZIP. The
+package enables this mode in `web.config` and excludes configuration secrets and
+the optional admin UI. Deploy to the new site's `wwwroot`, enable trusted HTTPS,
+then run `scripts/check-release-api.py` with `API_BASE_URL` set to the address
+above. Both Codemagic workflows require this check before compiling a release.
+Free MonsterASP sites require a support request for manual HTTPS activation.
+
+Public mode exposes in-app updates from published WordPress page metadata.
+Automatic push notifications require website integration/admin access; they
+are not delivered by this mode. The API has no account, server cart, payment,
+application-storage or admin endpoints in public mode. The app cart stays local.
+
+## Optional authenticated backend and WordPress plugin
+
+The following describes the retained full backend. Its MongoDB, SMTP, signed
+WordPress-plugin and Firebase requirements do not apply to public website mode.
+
 Technocare is a Flutter Android/iOS application backed by ASP.NET Core 8 and the live [technocare.az](https://technocare.az/) WordPress/WooCommerce site. WordPress remains the source of truth for homepage sections, services, education, projects, products, prices, stock, brands, and categories. Supported website changes reach the app through a five-minute conditional cache without a mobile release.
 
 ## Architecture

@@ -16,6 +16,14 @@ using MongoDB.Bson.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The public website deployment needs neither accounts nor a MongoDB database.
+// Keep its endpoint surface separate from the optional authenticated backend.
+if (builder.Configuration.GetValue<bool>("PublicWebsite:Enabled"))
+{
+    await PublicWebsiteHost.RunAsync(builder);
+    return;
+}
+
 builder.Services.AddOptions<MongoDbSettings>()
     .Bind(builder.Configuration.GetSection("MongoDbSettings"))
     .Validate(settings => !string.IsNullOrWhiteSpace(settings.ConnectionString), "MongoDB connection string is required.")

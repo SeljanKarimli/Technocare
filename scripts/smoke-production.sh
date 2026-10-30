@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-api_base="${API_BASE_URL:-https://api.technocare.az/api}"
-wp_base="${WORDPRESS_BASE_URL:-https://technocare.az/wp-json/technocare-app/v1}"
+api_base="${API_BASE_URL:-https://technocare-live-api.runasp.net/api}"
 api_origin="${api_base%/api}"
 
 curl --fail --silent --show-error "${api_origin%/}/health/live" >/dev/null
 curl --fail --silent --show-error "${api_origin%/}/health/ready" >/dev/null
 
 for route in home projects services education; do
-  curl --fail --silent --show-error "${wp_base%/}/${route}" >/dev/null
+  curl --fail --silent --show-error "${api_base%/}/v1/content/${route}" >/dev/null
 done
 for route in categories brands; do
-  curl --fail --silent --show-error "${wp_base%/}/${route}" >/dev/null
+  curl --fail --silent --show-error "${api_base%/}/v1/shop/${route}" >/dev/null
 done
+curl --fail --silent --show-error "${api_base%/}/notifications/public" >/dev/null
 
 products="$(curl --fail --silent --show-error "${api_base%/}/v1/shop/products?page=1&pageSize=1")"
 projects="$(curl --fail --silent --show-error "${api_base%/}/v1/content/projects?page=1&pageSize=50")"
