@@ -25,12 +25,15 @@ same `API_BASE_URL` passed to Flutter. DNS, transport, anonymous homepage access
 the product catalogue must work before a signed build is produced. A successful
 compile alone does not prove a fresh install can load its home screen.
 
-The owner approved `http://technocare-live-api.runasp.net/api` for the public
-gateway. The ATS exception permits HTTP only for that exact hostname, without
-subdomains. It serves public catalogue and website content; it does not carry
-account credentials, payment data or application forms. Enquiries open in
-WhatsApp. Explain this exception in App Review notes if Apple requests it.
-All other hosts retain the default ATS protections.
+The production gateway is `https://technocare-live-api.runasp.net/api`.
+MonsterASP has enabled HTTPS for this hostname. The app uses the default App
+Transport Security protections without HTTP exceptions, and the release gate
+rejects HTTP URLs and HTTPS-to-HTTP redirects. Existing installed builds retain
+their compiled API URL until replaced with an updated build. Enquiries open in
+WhatsApp.
+
+See [MonsterASP connectivity checks](monsterasp-connectivity.md) if HTTPS works
+but the homepage or catalogue returns HTTP 502.
 
 Run the `Technocare iOS App Store` workflow manually in Codemagic. It:
 

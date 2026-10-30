@@ -30,10 +30,14 @@ If this fails, repair backend deployment/DNS/TLS/upstream access before building
 or uploading. Do not replace a failed production endpoint with a local preview
 server or disable certificate validation.
 
-The approved HTTP gateway is `http://technocare-live-api.runasp.net/api`.
-`network_security_config.xml` permits cleartext for that exact hostname only;
-the base policy still denies cleartext to other hosts. This public gateway
-must not host authenticated, payment or personal-data endpoints.
+The production gateway is `https://technocare-live-api.runasp.net/api`.
+MonsterASP has enabled HTTPS for this hostname. `network_security_config.xml`
+denies cleartext traffic to every host, and the release gate rejects HTTP URLs
+and HTTPS-to-HTTP redirects. Existing installed builds retain their compiled
+API URL until replaced with an updated build.
+
+See [MonsterASP connectivity checks](monsterasp-connectivity.md) if HTTPS works
+but the homepage or catalogue returns HTTP 502.
 
 1. Upload the keystore in Codemagic under **Teams > Personal Account > Integrations > Code signing identities > Android keystores** using the reference `technocare_upload_key`.
 2. Build once and verify that the `Verify Android App Bundle signature` step passes.
