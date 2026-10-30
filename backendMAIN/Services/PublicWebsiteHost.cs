@@ -13,6 +13,11 @@ public static class PublicWebsiteHost
     public static async Task RunAsync(WebApplicationBuilder builder)
     {
         builder.Services.AddMemoryCache(options => options.SizeLimit = 64);
+        builder.Services.AddResponseCaching(options =>
+        {
+            options.SizeLimit = 16 * 1024 * 1024;
+            options.MaximumBodySize = 2 * 1024 * 1024;
+        });
         builder.Services.AddHttpClient<PublicWebsiteClient>(client =>
         {
             client.BaseAddress = new Uri("https://technocare.az/");
@@ -55,12 +60,13 @@ public static class PublicWebsiteHost
             catch (Exception error) when (error is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidDataException)
             {
                 if (context.RequestAborted.IsCancellationRequested) return;
-                app.Logger.LogWarning("Public website request failed: {ErrorType}", error.GetType().Name);
+                app.Logger.LogWarning(error, "Public website request failed: {ErrorType}", error.GetType().Name);
                 context.Response.StatusCode = error is HttpRequestException { StatusCode: HttpStatusCode.NotFound } ? 404 : 502;
                 await context.Response.WriteAsJsonAsync(new { message = "Technocare saytı hazırda əlçatan deyil. Yenidən cəhd edin." });
             }
         });
         app.UseRateLimiter();
+        app.UseResponseCaching();
         app.MapControllers();
         app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", mode = "public-website" }));
         app.MapGet("/health/ready", async (PublicWebsiteClient site, CancellationToken ct) =>

@@ -53,12 +53,14 @@ public sealed class PublicWebsiteClient(HttpClient http, IMemoryCache cache)
 
     public async Task<HomeContentResponse> HomeAsync(CancellationToken ct)
     {
+        using var optional = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        optional.CancelAfter(TimeSpan.FromSeconds(8));
         var markupTask = MarkupAsync("/", ct);
-        var categoriesTask = CategoriesAsync(ct);
-        var productsTask = ProductsAsync(new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+        var categoriesTask = OptionalAsync(CategoriesAsync(optional.Token), new ShopTaxonomyResponse(), ct);
+        var productsTask = OptionalAsync(ProductsAsync(new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
         {
             ["pageSize"] = "8", ["sort"] = "popularity",
-        }), ct);
+        }), optional.Token), new PagedShopProductsResponse(), ct);
         await Task.WhenAll(markupTask, categoriesTask, productsTask);
         var root = PageRoot(await markupTask);
         var result = new HomeContentResponse { SourceUrl = "https://technocare.az/", UpdatedAt = DateTimeOffset.UtcNow };
@@ -79,13 +81,13 @@ public sealed class PublicWebsiteClient(HttpClient http, IMemoryCache cache)
             result.Sections.Add(section);
         }
         var categories = await categoriesTask;
-        result.Sections.Insert(Math.Min(2, result.Sections.Count), new HomeSectionDto
+        if (categories.Items.Count > 0) result.Sections.Insert(Math.Min(2, result.Sections.Count), new HomeSectionDto
         {
             Id = "categories", Type = "categories", Title = "Məhsullar üzrə kateqoriyalar",
             Items = categories.Items.Where(category => category.ParentId == 0).Take(12).Select(Item).ToList(),
         });
         var products = await productsTask;
-        result.Sections.Insert(Math.Min(3, result.Sections.Count), new HomeSectionDto
+        if (products.Items.Count > 0) result.Sections.Insert(Math.Min(3, result.Sections.Count), new HomeSectionDto
         {
             Id = "best_sellers", Type = "best_sellers", Title = "Ən çox satılan məhsullar", Items = products.Items.Select(Item).ToList(),
         });
@@ -93,6 +95,18 @@ public sealed class PublicWebsiteClient(HttpClient http, IMemoryCache cache)
         result.Sections.Add(new HomeSectionDto { Id = "contact", Type = "contact", Links = Links(root) });
         for (var i = 0; i < result.Sections.Count; i++) result.Sections[i].Order = i;
         return result;
+    }
+
+    private static async Task<T> OptionalAsync<T>(Task<T> request, T fallback, CancellationToken ct)
+    {
+        try { return await request; }
+        catch (Exception error) when (!ct.IsCancellationRequested && error is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            // A slow catalogue widget must not turn an otherwise healthy home
+            // page into a full-screen connection error. Shop calls still fail
+            // explicitly and can be retried independently.
+            return fallback;
+        }
     }
 
     public async Task<PagedShopProductsResponse> ProductsAsync(IQueryCollection query, CancellationToken ct)

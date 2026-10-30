@@ -1,11 +1,34 @@
 using System.Text.Json;
+using System.Net;
 using backend.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using Xunit;
+using Microsoft.Extensions.Caching.Memory;
 
 public class PublicWebsiteTests
 {
+    [Fact]
+    public async Task TemporaryCatalogueFailureDoesNotHideHealthyHomepage()
+    {
+        using var http = new HttpClient(new PartialOutageHandler()) { BaseAddress = new Uri("https://technocare.az/") };
+        using var cache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 64 });
+        var home = await new PublicWebsiteClient(http, cache).HomeAsync(CancellationToken.None);
+        Assert.Contains(home.Sections, section => section.Type == "hero" && section.Title == "Technocare");
+        Assert.DoesNotContain(home.Sections, section => section.Type == "best_sellers");
+    }
+
+    private sealed class PartialOutageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var response = request.RequestUri!.AbsolutePath == "/"
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<main><section><h2>Technocare</h2><p>Published homepage content</p></section></main>") }
+                : new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            return Task.FromResult(response);
+        }
+    }
+
     [Theory]
     [InlineData("157486", 2, "1574.86")]
     [InlineData("0", 2, "0")]
