@@ -294,7 +294,8 @@ public sealed class PublicWebsiteClient(HttpClient http, IMemoryCache cache)
     private static List<HomeLinkDto> Links(HtmlNode node) => node.Descendants("a").Select(anchor => new HomeLinkDto
     {
         Label = Clean(anchor.InnerText), Url = ContactUrl(anchor.GetAttributeValue("href", "")),
-    }).Where(link => link.Url.Length > 0).DistinctBy(link => link.Url).Take(40).ToList();
+    }).Where(link => link.Url.Length > 0 && (link.Label.Length > 0 || link.Url.StartsWith("https://wa.me/", StringComparison.Ordinal)))
+        .DistinctBy(link => link.Url).Take(40).ToList();
     private static string ContactUrl(string value)
     {
         if (Uri.TryCreate(WebUtility.HtmlDecode(value), UriKind.Absolute, out var uri) && uri.Scheme == "https" && uri.Host is "wa.me" or "api.whatsapp.com") return uri.AbsoluteUri;

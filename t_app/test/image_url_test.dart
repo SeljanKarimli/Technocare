@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:technocare/core/api_config.dart';
 import 'package:technocare/core/image_url.dart';
 
 void main() {
@@ -44,7 +45,7 @@ void main() {
         'https://technocare.az/wp-content/uploads/2024/04/Azərbaycan.png';
     expect(
       AppImageUrl.candidates(origin, useGateway: true).first,
-      'https://api.technocare.az/api/v1/media?url=https%3A%2F%2Ftechnocare.az%2Fwp-content%2Fuploads%2F2024%2F04%2FAz%25C9%2599rbaycan.png',
+      '${ApiConfig.baseUrl}/v1/media?url=https%3A%2F%2Ftechnocare.az%2Fwp-content%2Fuploads%2F2024%2F04%2FAz%25C9%2599rbaycan.png',
     );
   });
 }
