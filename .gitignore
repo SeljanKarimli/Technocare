@@ -22,6 +22,7 @@ Desktop.ini
 logs/
 *.sqlite
 *.sqlite3
+__pycache__/
 
 # .NET build and tooling output
 **/[Bb]in/

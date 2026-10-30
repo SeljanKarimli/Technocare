@@ -20,6 +20,11 @@ Technocare's iOS application uses bundle identifier
 
 ## Build and upload
 
+Both release workflows first run `scripts/check-release-api.py` against the
+same `API_BASE_URL` passed to Flutter. DNS, TLS, anonymous homepage access and
+the product catalogue must work before a signed build is produced. A successful
+compile alone does not prove a fresh install can load its home screen.
+
 Run the `Technocare iOS App Store` workflow manually in Codemagic. It:
 
 - analyzes and tests the Flutter app;

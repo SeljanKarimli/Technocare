@@ -24,6 +24,12 @@ storeFile=REPLACE_WITH_ABSOLUTE_KEYSTORE_PATH
 
 ## Google Play publishing
 
+The workflow first checks the live homepage and catalogue using
+`scripts/check-release-api.py` and the exact `API_BASE_URL` used by Flutter.
+If this fails, repair backend deployment/DNS/TLS/upstream access before building
+or uploading. Do not replace a failed production endpoint with a local preview
+server or disable certificate validation.
+
 1. Upload the keystore in Codemagic under **Teams > Personal Account > Integrations > Code signing identities > Android keystores** using the reference `technocare_upload_key`.
 2. Build once and verify that the `Verify Android App Bundle signature` step passes.
 3. For the first release, upload the signed bundle manually to the Google Play **Internal testing** track if Google Play has not yet accepted a version of the application.

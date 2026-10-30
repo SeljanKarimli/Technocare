@@ -20,6 +20,8 @@ workflows:
         - $FLUTTER_ROOT/.pub-cache
         - $HOME/Library/Caches/CocoaPods
     scripts:
+      - name: Verify live API before iOS release
+        script: python3 ../scripts/check-release-api.py
       - name: Get Flutter packages
         script: flutter pub get
       - name: Analyze Flutter source
@@ -74,6 +76,8 @@ workflows:
           include: true
           source: true
     scripts:
+      - name: Verify live API before Android release
+        script: python3 ../scripts/check-release-api.py
       - name: Get Flutter packages
         script: flutter pub get
       - name: Analyze Flutter source
