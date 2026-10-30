@@ -5,6 +5,8 @@
 The active mobile deployment uses `https://technocare-live-api.runasp.net/api`.
 Run the ASP.NET application with `PublicWebsite__Enabled=true` to serve the
 guest app without MongoDB, SMTP credentials, or a custom WordPress plugin.
+Public mode is also the default when no MongoDB connection is configured, so a
+clean MonsterASP Git deployment starts without secret configuration files.
 Products, prices and stock come from the site's public WooCommerce Store API;
 homepage, service, education and portfolio content are extracted from published
 website pages on the server. Flutter continues to consume typed JSON. Website

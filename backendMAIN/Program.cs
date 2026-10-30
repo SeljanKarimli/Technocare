@@ -18,7 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // The public website deployment needs neither accounts nor a MongoDB database.
 // Keep its endpoint surface separate from the optional authenticated backend.
-if (builder.Configuration.GetValue<bool>("PublicWebsite:Enabled"))
+var usePublicWebsite = builder.Configuration.GetValue<bool?>("PublicWebsite:Enabled")
+    ?? string.IsNullOrWhiteSpace(builder.Configuration["MongoDbSettings:ConnectionString"]);
+if (usePublicWebsite)
 {
     await PublicWebsiteHost.RunAsync(builder);
     return;
