@@ -1,7 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import urllib.error
 
 spec = importlib.util.spec_from_file_location("release_api", Path(__file__).with_name("check-release-api.py"))
@@ -10,10 +10,10 @@ spec.loader.exec_module(release_api)
 
 
 class ReleaseApiTests(unittest.TestCase):
-    def test_http_exception_is_limited_to_approved_gateway(self):
-        base = "http://technocare-live-api.runasp.net/api"
+    def test_gateway_requires_https(self):
+        base = "https://technocare-live-api.runasp.net/api"
         self.assertEqual(release_api.api_base(base), base)
-        for value in ("http://technocare-live-api.runasp.net.evil.test/api", "http://technocare-live-api.runasp.net:8080/api"):
+        for value in ("http://technocare-live-api.runasp.net/api", "http://technocare-live-api.runasp.net.evil.test/api", "http://technocare-live-api.runasp.net:8080/api"):
             with self.subTest(value=value), self.assertRaises(release_api.ReleaseApiError):
                 release_api.api_base(value)
 
@@ -49,6 +49,15 @@ class ReleaseApiTests(unittest.TestCase):
         with patch.object(release_api.urllib.request, "urlopen", side_effect=urllib.error.URLError("Name or service not known")):
             with self.assertRaisesRegex(release_api.ReleaseApiError, "DNS, TLS or connection failure"):
                 release_api.read_json("https://api.example.com/api/v1/content/home")
+
+    def test_release_rejects_redirect_to_http(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.url = "http://technocare-live-api.runasp.net/api/v1/content/home"
+        response.status = 200
+        with patch.object(release_api.urllib.request, "urlopen", return_value=response):
+            with self.assertRaisesRegex(release_api.ReleaseApiError, "insecure endpoint"):
+                release_api.read_json("https://technocare-live-api.runasp.net/api/v1/content/home")
 
     def test_forbidden_is_not_mistaken_for_success(self):
         error = urllib.error.HTTPError("https://api.example.com/api/v1/content/home", 403, "Forbidden", {}, None)

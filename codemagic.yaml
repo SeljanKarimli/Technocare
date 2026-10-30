@@ -14,7 +14,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.technocare.technocare
       vars:
-        API_BASE_URL: http://technocare-live-api.runasp.net/api
+        API_BASE_URL: https://technocare-live-api.runasp.net/api
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
@@ -62,7 +62,7 @@ workflows:
       android_signing:
         - technocare_upload_key
       vars:
-        API_BASE_URL: http://technocare-live-api.runasp.net/api
+        API_BASE_URL: https://technocare-live-api.runasp.net/api
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache

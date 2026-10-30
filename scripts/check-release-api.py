@@ -18,13 +18,7 @@ class ReleaseApiError(Exception):
 
 
 def permitted_transport(parsed):
-    # Explicitly approved public, read-only gateway exception. All other
-    # release hosts still require HTTPS.
-    return parsed.scheme == "https" or (
-        parsed.scheme == "http"
-        and parsed.hostname == "technocare-live-api.runasp.net"
-        and parsed.port in (None, 80)
-    )
+    return parsed.scheme == "https"
 
 
 def api_base(value):
@@ -39,7 +33,7 @@ def api_base(value):
         or parsed.fragment
         or parsed.path != "/api"
     ):
-        raise ReleaseApiError("API_BASE_URL must be an HTTPS origin followed by /api, or the approved HTTP gateway.")
+        raise ReleaseApiError("API_BASE_URL must be an HTTPS origin followed by /api.")
     return value
 
 

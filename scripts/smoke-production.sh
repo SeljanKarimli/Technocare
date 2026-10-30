@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-api_base="${API_BASE_URL:-http://technocare-live-api.runasp.net/api}"
+api_base="${API_BASE_URL:-https://technocare-live-api.runasp.net/api}"
 api_origin="${api_base%/api}"
 
 curl --fail --silent --show-error "${api_origin%/}/health/live" >/dev/null
