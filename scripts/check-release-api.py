@@ -17,11 +17,21 @@ class ReleaseApiError(Exception):
     pass
 
 
+def permitted_transport(parsed):
+    # Explicitly approved public, read-only gateway exception. All other
+    # release hosts still require HTTPS.
+    return parsed.scheme == "https" or (
+        parsed.scheme == "http"
+        and parsed.hostname == "technocare-live-api.runasp.net"
+        and parsed.port in (None, 80)
+    )
+
+
 def api_base(value):
     value = value.strip().rstrip("/")
     parsed = urllib.parse.urlsplit(value)
     if (
-        parsed.scheme != "https"
+        not permitted_transport(parsed)
         or not parsed.hostname
         or parsed.username
         or parsed.password
@@ -29,7 +39,7 @@ def api_base(value):
         or parsed.fragment
         or parsed.path != "/api"
     ):
-        raise ReleaseApiError("API_BASE_URL must be an HTTPS origin followed by /api.")
+        raise ReleaseApiError("API_BASE_URL must be an HTTPS origin followed by /api, or the approved HTTP gateway.")
     return value
 
 
@@ -39,8 +49,10 @@ def read_json(url):
     )
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            if urllib.parse.urlsplit(response.url).scheme != "https":
-                raise ReleaseApiError("API redirected to an insecure HTTP endpoint.")
+            source = urllib.parse.urlsplit(url)
+            destination = urllib.parse.urlsplit(response.url)
+            if not permitted_transport(destination) or (source.scheme == "https" and destination.scheme != "https"):
+                raise ReleaseApiError("API redirected to an unapproved insecure endpoint.")
             if response.status != 200:
                 raise ReleaseApiError(f"Expected HTTP 200, received {response.status}.")
             return json.load(response)

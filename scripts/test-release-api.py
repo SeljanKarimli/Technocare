@@ -10,6 +10,13 @@ spec.loader.exec_module(release_api)
 
 
 class ReleaseApiTests(unittest.TestCase):
+    def test_http_exception_is_limited_to_approved_gateway(self):
+        base = "http://technocare-live-api.runasp.net/api"
+        self.assertEqual(release_api.api_base(base), base)
+        for value in ("http://technocare-live-api.runasp.net.evil.test/api", "http://technocare-live-api.runasp.net:8080/api"):
+            with self.subTest(value=value), self.assertRaises(release_api.ReleaseApiError):
+                release_api.api_base(value)
+
     def test_release_rejects_insecure_or_malformed_configuration(self):
         for base in ("", "http://api.example.com/api", "https://api.example.com", "https://user:secret@api.example.com/api", "https://api.example.com/api?key=secret"):
             with self.subTest(base=base), self.assertRaises(release_api.ReleaseApiError):

@@ -2,7 +2,7 @@
 
 ## Current free hosting deployment
 
-The active mobile deployment uses `https://technocare-live-api.runasp.net/api`.
+The active mobile deployment uses `http://technocare-live-api.runasp.net/api`.
 Run the ASP.NET application with `PublicWebsite__Enabled=true` to serve the
 guest app without MongoDB, SMTP credentials, or a custom WordPress plugin.
 Public mode is also the default when no MongoDB connection is configured, so a
@@ -15,10 +15,16 @@ orders open a WhatsApp draft that the customer sends explicitly.
 
 Use `scripts/package-monsterasp.ps1` to build a secret-free deployment ZIP. The
 package enables this mode in `web.config` and excludes configuration secrets and
-the optional admin UI. Deploy to the new site's `wwwroot`, enable trusted HTTPS,
-then run `scripts/check-release-api.py` with `API_BASE_URL` set to the address
+the optional admin UI. Deploy to the new site's `wwwroot`, then run `scripts/check-release-api.py` with `API_BASE_URL` set to the address
 above. Both Codemagic workflows require this check before compiling a release.
-Free MonsterASP sites require a support request for manual HTTPS activation.
+The owner approved HTTP for this public, read-only gateway while free HTTPS is unavailable.
+Android and iOS permit cleartext only for `technocare-live-api.runasp.net`; all
+other hosts retain their normal transport security. Responses can be observed
+or modified in transit. Do not enable authenticated or personal-data endpoints
+on this HTTP deployment. The release gate permits HTTP only for this hostname.
+The upstream website and WhatsApp connections continue to use HTTPS.
+App Store review notes should explain that the exception serves only public
+catalogue and website content; enquiries open separately in WhatsApp.
 
 Public mode exposes in-app updates from published WordPress page metadata.
 Automatic push notifications require website integration/admin access; they

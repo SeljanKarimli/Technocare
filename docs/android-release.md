@@ -30,6 +30,11 @@ If this fails, repair backend deployment/DNS/TLS/upstream access before building
 or uploading. Do not replace a failed production endpoint with a local preview
 server or disable certificate validation.
 
+The approved HTTP gateway is `http://technocare-live-api.runasp.net/api`.
+`network_security_config.xml` permits cleartext for that exact hostname only;
+the base policy still denies cleartext to other hosts. This public gateway
+must not host authenticated, payment or personal-data endpoints.
+
 1. Upload the keystore in Codemagic under **Teams > Personal Account > Integrations > Code signing identities > Android keystores** using the reference `technocare_upload_key`.
 2. Build once and verify that the `Verify Android App Bundle signature` step passes.
 3. For the first release, upload the signed bundle manually to the Google Play **Internal testing** track if Google Play has not yet accepted a version of the application.

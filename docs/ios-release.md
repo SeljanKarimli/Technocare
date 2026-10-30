@@ -21,9 +21,16 @@ Technocare's iOS application uses bundle identifier
 ## Build and upload
 
 Both release workflows first run `scripts/check-release-api.py` against the
-same `API_BASE_URL` passed to Flutter. DNS, TLS, anonymous homepage access and
+same `API_BASE_URL` passed to Flutter. DNS, transport, anonymous homepage access and
 the product catalogue must work before a signed build is produced. A successful
 compile alone does not prove a fresh install can load its home screen.
+
+The owner approved `http://technocare-live-api.runasp.net/api` for the public
+gateway. The ATS exception permits HTTP only for that exact hostname, without
+subdomains. It serves public catalogue and website content; it does not carry
+account credentials, payment data or application forms. Enquiries open in
+WhatsApp. Explain this exception in App Review notes if Apple requests it.
+All other hosts retain the default ATS protections.
 
 Run the `Technocare iOS App Store` workflow manually in Codemagic. It:
 
